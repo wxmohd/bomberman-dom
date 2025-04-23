@@ -1,9 +1,11 @@
 // Game initialization logic
-import { generateMap, resetMap, destroyBlocksInExplosion, destroyBlock, CellType } from './map';
+import { generateMap, resetMap } from './map';
 import { initRenderer, renderMap } from './renderer';
 import { eventBus } from '../../framework/events';
-import { clearPowerUps, maybeSpawnPowerup } from './powerups';
-import { GRID_SIZE } from './constants';
+import { clearPowerUps } from './powerups';
+import { initPowerUpHUD, resetPowerUps } from './powerup-hud';
+import { createPowerUpTestButton } from './power-up-test';
+import { initLobby, playerStore } from './lobby';
 
 // Map data storage
 let currentMapData: any = null;
@@ -13,29 +15,55 @@ export function initGame() {
   const app = document.getElementById('app');
   if (!app) return;
   
-  // For now, just show a basic UI until Member 4 implements the lobby
-  app.innerHTML = '<h1>Bomberman DOM</h1>';
+  // Initialize the lobby system
+  initLobby(app);
   
-  // Create a controls container
+  // Create a controls container (will be hidden initially)
   const controlsContainer = document.createElement('div');
   controlsContainer.id = 'game-controls';
   controlsContainer.style.margin = '10px';
   controlsContainer.style.textAlign = 'center';
+  controlsContainer.style.display = 'none'; // Hide initially
   document.body.insertBefore(controlsContainer, app.nextSibling);
   
-  // Create a button to test the map generation
-  const testButton = document.createElement('button');
-  testButton.textContent = 'Generate Test Map';
-  testButton.style.margin = '10px';
-  testButton.addEventListener('click', () => {
+  // Create a button to generate the map
+  const generateButton = document.createElement('button');
+  generateButton.textContent = 'Generate Map';
+  generateButton.style.margin = '10px';
+  generateButton.style.padding = '8px 16px';
+  generateButton.style.backgroundColor = '#4CAF50';
+  generateButton.style.color = 'white';
+  generateButton.style.border = 'none';
+  generateButton.style.borderRadius = '4px';
+  generateButton.style.cursor = 'pointer';
+  generateButton.addEventListener('click', () => {
     startGame(app);
   });
   
-  // Add initial button to the controls container
-  controlsContainer.appendChild(testButton);
+  // Create a reset button
+  const resetButton = document.createElement('button');
+  resetButton.textContent = 'Reset Map';
+  resetButton.style.margin = '10px';
+  resetButton.style.padding = '8px 16px';
+  resetButton.style.backgroundColor = '#f44336';
+  resetButton.style.color = 'white';
+  resetButton.style.border = 'none';
+  resetButton.style.borderRadius = '4px';
+  resetButton.style.cursor = 'pointer';
+  resetButton.addEventListener('click', () => {
+    resetGame(app);
+  });
   
-  // Listen for game start event (will be triggered by Member 4's lobby system)
-  eventBus.on('game:start', () => {
+  // Add buttons to the controls container
+  controlsContainer.appendChild(generateButton);
+  controlsContainer.appendChild(resetButton);
+  
+  // Listen for game start event (will be triggered by the lobby system)
+  eventBus.on('game:start', (data) => {
+    // Show controls when game starts
+    if (controlsContainer) {
+      controlsContainer.style.display = 'flex';
+    }
     startGame(app);
   });
   
@@ -47,14 +75,22 @@ export function initGame() {
 
 // Start a new game
 function startGame(container: HTMLElement) {
+  // Get player data from the store
+  const { players, currentPlayer } = playerStore.getState();
+  
   // Create a controls container that won't be cleared
   let controlsContainer = document.getElementById('game-controls');
   if (!controlsContainer) {
     controlsContainer = document.createElement('div');
     controlsContainer.id = 'game-controls';
-    controlsContainer.style.margin = '10px';
-    controlsContainer.style.textAlign = 'center';
-    document.body.insertBefore(controlsContainer, container);
+    controlsContainer.style.position = 'fixed';
+    controlsContainer.style.top = '20px';
+    controlsContainer.style.right = '20px';
+    controlsContainer.style.zIndex = '1000';
+    controlsContainer.style.display = 'flex';
+    controlsContainer.style.flexDirection = 'column';
+    controlsContainer.style.gap = '10px';
+    document.body.appendChild(controlsContainer);
   } else {
     // Clear existing controls
     controlsContainer.innerHTML = '';
@@ -63,32 +99,81 @@ function startGame(container: HTMLElement) {
   // Create the reset button
   const resetButton = document.createElement('button');
   resetButton.textContent = 'Reset Map';
-  resetButton.style.margin = '10px';
+  resetButton.style.padding = '10px 20px';
+  resetButton.style.backgroundColor = '#f44336';
+  resetButton.style.color = 'white';
+  resetButton.style.border = 'none';
+  resetButton.style.borderRadius = '4px';
+  resetButton.style.cursor = 'pointer';
+  resetButton.style.fontWeight = 'bold';
+  resetButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+  resetButton.style.transition = 'all 0.2s ease';
+  resetButton.addEventListener('mouseover', () => {
+    resetButton.style.backgroundColor = '#d32f2f';
+    resetButton.style.transform = 'translateY(-2px)';
+    resetButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+  });
+  resetButton.addEventListener('mouseout', () => {
+    resetButton.style.backgroundColor = '#f44336';
+    resetButton.style.transform = 'translateY(0)';
+    resetButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+  });
   resetButton.addEventListener('click', () => {
     resetGame(container);
   });
   
-  // Create the test explosion button
-  const testExplosionButton = document.createElement('button');
-  testExplosionButton.textContent = 'Test Explosion';
-  testExplosionButton.style.margin = '10px';
-  testExplosionButton.addEventListener('click', () => {
-    if (currentMapData) {
-      testExplosion();
-    } else {
-      alert('Generate a map first!');
-    }
-  });
-  
-  // Add buttons to the controls container
+  // Add button to the controls container
   controlsContainer.appendChild(resetButton);
-  controlsContainer.appendChild(testExplosionButton);
+  
+  // Create player info display
+  const playerInfo = document.createElement('div');
+  playerInfo.id = 'player-info';
+  playerInfo.style.cssText = `
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: Arial, sans-serif;
+    z-index: 100;
+  `;
+  
+  if (currentPlayer) {
+    playerInfo.innerHTML = `
+      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname}</div>
+      <div style="width: 20px; height: 20px; background-color: ${currentPlayer.color}; border-radius: 50%; display: inline-block; margin-right: 5px;"></div>
+    `;
+  }
+  
+  document.body.appendChild(playerInfo);
   
   // Clear main container
   container.innerHTML = '';
   
+  // Set full page styles for game container
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+  document.body.style.overflow = 'hidden';
+  document.body.style.width = '100vw';
+  document.body.style.height = '100vh';
+  document.body.style.backgroundColor = '#222';
+  
+  // Make container full-page
+  container.style.width = '100vw';
+  container.style.height = '100vh';
+  container.style.position = 'relative';
+  container.style.overflow = 'hidden';
+  
   // Initialize renderer
   initRenderer(container);
+  
+  // Initialize power-up HUD
+  initPowerUpHUD();
+  
+  // Create power-up test buttons
+  createPowerUpTestButton();
   
   // Generate map
   currentMapData = generateMap();
@@ -96,16 +181,23 @@ function startGame(container: HTMLElement) {
   // Render map
   renderMap(currentMapData);
   
-  // Emit map ready event (for other members to handle)
-  eventBus.emit('map:ready', { mapData: currentMapData });
+  // Emit map ready event with player data
+  eventBus.emit('map:ready', { 
+    mapData: currentMapData,
+    players,
+    currentPlayer
+  });
   
-  console.log('Map generated:', currentMapData);
+  console.log('Map generated with players:', players);
 }
 
 // Reset the game
 function resetGame(container: HTMLElement) {
   // Clear power-ups
   clearPowerUps();
+  
+  // Reset power-up HUD
+  resetPowerUps();
   
   // Reset map
   currentMapData = resetMap();
@@ -122,89 +214,4 @@ function resetGame(container: HTMLElement) {
 // Get current map data
 export function getCurrentMapData() {
   return currentMapData;
-}
-
-// Test function to demonstrate explosions and block destruction
-function testExplosion() {
-  if (!currentMapData) {
-    console.error('No map data available');
-    return;
-  }
-  
-  console.log('Starting test explosion...');
-  
-  // Find a suitable position for the test explosion
-  const { grid } = currentMapData;
-  let centerX = Math.floor(GRID_SIZE / 2);
-  let centerY = Math.floor(GRID_SIZE / 2);
-  
-  console.log('Explosion center:', { x: centerX, y: centerY });
-  console.log('Current map data:', currentMapData);
-  
-  // Manually create explosion cells for testing
-  // Mark the center and adjacent cells as explosions
-  const directions = [
-    { dx: 0, dy: 0 },   // Center
-    { dx: 0, dy: -1 },  // Up
-    { dx: 1, dy: 0 },   // Right
-    { dx: 0, dy: 1 },   // Down
-    { dx: -1, dy: 0 }   // Left
-  ];
-  
-  directions.forEach(({ dx, dy }) => {
-    const x = centerX + dx;
-    const y = centerY + dy;
-    
-    // Check bounds
-    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-      // Only place explosion in empty cells or destroy blocks
-      const cellType = grid[y][x];
-      
-      if (cellType === CellType.EMPTY) {
-        grid[y][x] = CellType.EXPLOSION;
-        console.log(`Placed explosion at ${x},${y}`);
-        
-        // Reset after animation
-        setTimeout(() => {
-          if (grid[y][x] === CellType.EXPLOSION) {
-            grid[y][x] = CellType.EMPTY;
-          }
-        }, 1000);
-      } else if (cellType === CellType.BLOCK) {
-        // Find the actual block object
-        const blockObj = currentMapData.blocks.find(block => block.x === x && block.y === y);
-        if (blockObj) {
-          // Call the block's destroy method directly
-          const destroyed = blockObj.destroy();
-          
-          // Update the grid
-          if (destroyed) {
-            grid[y][x] = CellType.EMPTY;
-            
-            // Remove from blocks array after animation completes
-            setTimeout(() => {
-              const blockIndex = currentMapData.blocks.findIndex(b => b === blockObj);
-              if (blockIndex !== -1) {
-                currentMapData.blocks.splice(blockIndex, 1);
-              }
-            }, 300);
-            
-            // Maybe spawn a powerup
-            const powerup = maybeSpawnPowerup(x, y);
-            
-            console.log(`Successfully destroyed block at ${x},${y}. Powerup spawned: ${powerup !== null}`);
-          } else {
-            console.log(`Failed to destroy block at ${x},${y}`);
-          }
-        } else {
-          console.log(`Could not find block object at ${x},${y}`);
-        }
-      }
-    }
-  });
-  
-  // Re-render the map to show the explosion
-  renderMap(currentMapData);
-  
-  console.log('Test explosion completed');
 }

@@ -1,5 +1,6 @@
 // Game renderer for map, blocks, and power-ups
 import { h, render } from '../../framework/dom';
+import { eventBus } from '../../framework/events';
 import { GRID_SIZE, TILE_SIZE } from './constants';
 import { MapData, CellType } from './map';
 import { renderPowerUps } from './powerups';
@@ -10,6 +11,79 @@ let mapContainer: HTMLElement | null = null;
 
 // Initialize the game renderer
 export function initRenderer(container: HTMLElement): void {
+  // Add CSS for game positioning
+  const gameStyles = document.createElement('style');
+  gameStyles.textContent = `
+    .game-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      background-color: #222;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    
+    .game-container {
+      position: relative;
+      width: ${GRID_SIZE * TILE_SIZE}px;
+      height: ${GRID_SIZE * TILE_SIZE}px;
+      background-color: #7ABD7E;
+      overflow: hidden;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+      border-radius: 8px;
+    }
+    
+    .reset-button {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background-color: #f44336;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      z-index: 1000;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+    
+    .reset-button:hover {
+      background-color: #d32f2f;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    
+    @media (max-height: ${GRID_SIZE * TILE_SIZE + 100}px) {
+      .game-container {
+        transform: scale(0.9);
+      }
+    }
+    
+    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.9 + 100}px) {
+      .game-container {
+        transform: scale(0.8);
+      }
+    }
+    
+    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.8 + 100}px) {
+      .game-container {
+        transform: scale(0.7);
+      }
+    }
+  `;
+  document.head.appendChild(gameStyles);
+  
+  // Create a wrapper for centering
+  const wrapperElement = document.createElement('div');
+  wrapperElement.className = 'game-wrapper';
+  container.appendChild(wrapperElement);
+  
   // Create main game container
   const gameElement = h('div', {
     class: 'game-container',
@@ -17,14 +91,23 @@ export function initRenderer(container: HTMLElement): void {
       position: relative;
       width: ${GRID_SIZE * TILE_SIZE}px;
       height: ${GRID_SIZE * TILE_SIZE}px;
-      margin: 0 auto;
       background-color: #7ABD7E;
       overflow: hidden;
     `
   }, []);
   
   gameContainer = render(gameElement) as HTMLElement;
-  container.appendChild(gameContainer);
+  wrapperElement.appendChild(gameContainer);
+  
+  // Add reset button directly to the wrapper
+  const resetButton = document.createElement('button');
+  resetButton.className = 'reset-button';
+  resetButton.textContent = 'Reset Map';
+  resetButton.addEventListener('click', () => {
+    // Emit reset event
+    eventBus.emit('game:reset', {});
+  });
+  wrapperElement.appendChild(resetButton);
   
   // Create map container
   const mapElement = h('div', {
