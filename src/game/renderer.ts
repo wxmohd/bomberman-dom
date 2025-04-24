@@ -24,7 +24,8 @@ export function initRenderer(container: HTMLElement): void {
       position: absolute;
       top: 0;
       left: 0;
-      overflow: hidden;
+      padding: 20px;
+      box-sizing: border-box;
     }
     
     .game-container {
@@ -33,11 +34,11 @@ export function initRenderer(container: HTMLElement): void {
       height: ${GRID_SIZE * TILE_SIZE}px;
       background-color: #7ABD7E;
       overflow: hidden;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
       border-radius: 8px;
-      /* Default scale to fit most screens */
-      transform: scale(0.95);
       transform-origin: center center;
+      /* Calculate scale based on viewport size */
+      transform: scale(min(calc(90vh / ${GRID_SIZE * TILE_SIZE}), calc(90vw / ${GRID_SIZE * TILE_SIZE})));
     }
     
     .reset-button {
@@ -63,61 +64,7 @@ export function initRenderer(container: HTMLElement): void {
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
     
-    /* Responsive scaling for different screen sizes */
-    @media (min-height: ${GRID_SIZE * TILE_SIZE + 100}px) {
-      .game-container {
-        transform: scale(1);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE + 50}px) {
-      .game-container {
-        transform: scale(0.9);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.9}px) {
-      .game-container {
-        transform: scale(0.8);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.8}px) {
-      .game-container {
-        transform: scale(0.7);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.7}px) {
-      .game-container {
-        transform: scale(0.6);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.6}px) {
-      .game-container {
-        transform: scale(0.5);
-      }
-    }
-    
-    @media (max-height: ${GRID_SIZE * TILE_SIZE * 0.5}px) {
-      .game-container {
-        transform: scale(0.4);
-      }
-    }
-    
-    /* Also handle different screen widths */
-    @media (max-width: ${GRID_SIZE * TILE_SIZE + 50}px) {
-      .game-container {
-        transform: scale(0.9);
-      }
-    }
-    
-    @media (max-width: ${GRID_SIZE * TILE_SIZE * 0.9}px) {
-      .game-container {
-        transform: scale(0.8);
-      }
-    }
+    /* Dynamic scaling handles all screen sizes */
   `;
   document.head.appendChild(gameStyles);
   
