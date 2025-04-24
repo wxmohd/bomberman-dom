@@ -1,7 +1,7 @@
 // Game renderer for map, blocks, and power-ups
 import { h, render } from '../../framework/dom';
 import { eventBus } from '../../framework/events';
-import { GRID_SIZE, TILE_SIZE } from './constants';
+import { GRID_WIDTH, GRID_HEIGHT, TILE_SIZE } from './constants';
 import { MapData, CellType } from './map';
 import { renderPowerUps } from './powerups';
 
@@ -30,15 +30,15 @@ export function initRenderer(container: HTMLElement): void {
     
     .game-container {
       position: relative;
-      width: ${GRID_SIZE * TILE_SIZE}px;
-      height: ${GRID_SIZE * TILE_SIZE}px;
+      width: ${GRID_WIDTH * TILE_SIZE}px;
+      height: ${GRID_HEIGHT * TILE_SIZE}px;
       background-color: #7ABD7E;
       overflow: hidden;
       box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
       border-radius: 8px;
       transform-origin: center center;
       /* Calculate scale based on viewport size */
-      transform: scale(min(calc(90vh / ${GRID_SIZE * TILE_SIZE}), calc(90vw / ${GRID_SIZE * TILE_SIZE})));
+      transform: scale(min(calc(90vh / ${GRID_HEIGHT * TILE_SIZE}), calc(90vw / ${GRID_WIDTH * TILE_SIZE})));
     }
     
     .reset-button {
@@ -78,8 +78,8 @@ export function initRenderer(container: HTMLElement): void {
     class: 'game-container',
     style: `
       position: relative;
-      width: ${GRID_SIZE * TILE_SIZE}px;
-      height: ${GRID_SIZE * TILE_SIZE}px;
+      width: ${GRID_WIDTH * TILE_SIZE}px;
+      height: ${GRID_HEIGHT * TILE_SIZE}px;
       background-color: #7ABD7E;
       overflow: hidden;
     `
