@@ -1,11 +1,23 @@
 // Game initialization logic
-import { generateMap, resetMap } from './map';
-import { initRenderer, renderMap } from './renderer';
+import { generateMap } from './map';
+import { resetMap } from './map';
+import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
 import { clearPowerUps } from './powerups';
 import { initPowerUpHUD, resetPowerUps } from './powerup-hud';
 import { createPowerUpTestButton } from './power-up-test';
 import { initLobby, playerStore } from './lobby';
+import { Player } from '../entities/player';
+import { PlayerController } from './PlayerController';
+import { PlayerRenderer } from './PlayerRenderer';
+import { BombSystem } from './BombSystem';
+import { BombManager } from './BombManager';
+import { BombController } from './BombController';
+import { addTestPlayer } from './test-player';
+// import { PLAYER_STARTING_POSITIONS } from './map';
+import { TILE_SIZE } from './constants';
+import { initChatUI } from '../ui/chatUI';
+
 
 // Map data storage
 let currentMapData: any = null;
@@ -74,7 +86,27 @@ export function initGame() {
 }
 
 // Start a new game
-function startGame(container: HTMLElement) {
+export function startGame(container: HTMLElement) {
+  // Clear main container
+  container.innerHTML = '';
+  
+  // Set full page styles for game container
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+  document.body.style.overflow = 'hidden';
+  document.body.style.width = '100vw';
+  document.body.style.height = '100vh';
+  document.body.style.backgroundColor = '#222';
+  
+  // Make container full-page
+  container.style.width = '100vw';
+  container.style.height = '100vh';
+  container.style.position = 'relative';
+  container.style.overflow = 'hidden';
+  
+  // Initialize renderer first
+  initRenderer(container);
+  
   // Get player data from the store
   const { players, currentPlayer } = playerStore.getState();
   
@@ -149,37 +181,52 @@ function startGame(container: HTMLElement) {
   
   document.body.appendChild(playerInfo);
   
-  // Clear main container
-  container.innerHTML = '';
-  
-  // Set full page styles for game container
-  document.body.style.margin = '0';
-  document.body.style.padding = '0';
-  document.body.style.overflow = 'hidden';
-  document.body.style.width = '100vw';
-  document.body.style.height = '100vh';
-  document.body.style.backgroundColor = '#222';
-  
-  // Make container full-page
-  container.style.width = '100vw';
-  container.style.height = '100vh';
-  container.style.position = 'relative';
-  container.style.overflow = 'hidden';
-  
-  // Initialize renderer
-  initRenderer(container);
-  
   // Initialize power-up HUD
   initPowerUpHUD();
   
   // Create power-up test buttons
   createPowerUpTestButton();
   
+  // Initialize chat UI
+  initChatUI(document.body);
+  
   // Generate map
   currentMapData = generateMap();
   
-  // Render map
+  // Initialize bomb system and player mechanics
+  const mapContainer = getMapContainer();
+  if (!mapContainer) return;
+  
+  // Create a bomb system with the map container and grid size
+  const bombSystem = new BombSystem(mapContainer, currentMapData.grid.length);
+  
+  // Get the bomb manager from the bomb system
+  const bombManager = bombSystem.getBombManager();
+  
+  // Start the bomb system
+  bombSystem.start();
+  
+  // Update the bomb system with the current grid
+  bombSystem.updateGrid(currentMapData.grid);
+  
+  // Initialize player controller with the grid size
+  const playerController = new PlayerController(bombSystem, currentMapData.grid.length);
+  
+  // Render map first
   renderMap(currentMapData);
+  
+  // Get the map container for direct player addition
+  const gameMapContainer = getMapContainer();
+  if (!gameMapContainer) {
+    console.error('Map container not found!');
+    return;
+  }
+  
+  // Add a test player directly to the map AFTER rendering
+  setTimeout(() => {
+    addTestPlayer(gameMapContainer);
+    console.log('Added test player with direct DOM manipulation');
+  }, 100);
   
   // Emit map ready event with player data
   eventBus.emit('map:ready', { 

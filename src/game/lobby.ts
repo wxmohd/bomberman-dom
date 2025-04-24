@@ -55,6 +55,41 @@ export function initLobby(container: HTMLElement): void {
     }
   });
   
+  // Listen for waiting room updates from the server
+  eventBus.on('waitingRoom:update', (data) => {
+    console.log('Received waiting room update:', data);
+    
+    // Update players list from server data
+    if (data.players) {
+      // Map server players to our player format
+      const serverPlayers = data.players.map((p: any) => {
+        // Get color for this player (either existing or new)
+        const existingPlayer = playerStore.getState().players.find(existing => existing.id === p.id);
+        const color = existingPlayer ? existingPlayer.color : 
+          PLAYER_COLORS[playerStore.getState().players.length % PLAYER_COLORS.length];
+        
+        return {
+          id: p.id,
+          nickname: p.nickname,
+          color: color,
+          ready: true
+        };
+      });
+      
+      // Keep our current player in the state
+      const { currentPlayer } = playerStore.getState();
+      
+      // Update the store with server players
+      playerStore.setState({
+        players: serverPlayers,
+        gameState: 'waiting'
+      });
+      
+      // Update waiting room UI
+      renderWaitingRoom(container);
+    }
+  });
+  
   // Listen for game start events
   eventBus.on('game:start', () => {
     playerStore.setState({
@@ -202,47 +237,97 @@ function renderLoginScreen(container: HTMLElement): void {
 
 // Join the game with a nickname
 function joinGame(nickname: string, container: HTMLElement): void {
-  // Generate a unique player ID
-  const playerId = `player-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  console.log(`Joining game with nickname: ${nickname}`);
   
-  // Get available color
-  const { players } = playerStore.getState();
-  const availableColors = PLAYER_COLORS.filter(color => 
-    !players.find(p => p.color === color)
-  );
+  // Show loading indicator
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #1a1a1a; color: white;">
+      <h2>Connecting to server...</h2>
+      <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #f44336; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px 0;"></div>
+      <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+  `;
   
-  const playerColor = availableColors.length > 0 
-    ? availableColors[0] 
-    : PLAYER_COLORS[players.length % PLAYER_COLORS.length];
+  // Show loading indicator
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #1a1a1a; color: white;">
+      <h2>Connecting to server...</h2>
+      <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #f44336; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px 0;"></div>
+      <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+  `;
   
-  // Create player object
-  const player: Player = {
-    id: playerId,
-    nickname,
-    color: playerColor,
-    ready: true
-  };
+  // Set a timeout for connection
+  const connectionTimeoutId = setTimeout(() => {
+    console.log('Connection timeout, switching to offline mode');
+    startOfflineMode(nickname, container);
+  }, 5000); // 5 second timeout
   
-  // Update player store
-  playerStore.setState({
-    currentPlayer: player,
-    players: [...players, player],
-    gameState: 'waiting',
-    lobbyStartTime: players.length === 0 ? Date.now() : playerStore.getState().lobbyStartTime
+  // Add event listener for waiting room updates
+  eventBus.on('waitingRoom:update', (data) => {
+    console.log('Received waitingRoom:update event:', data);
+    // Re-render the waiting room with updated player list
+    renderWaitingRoom(container);
   });
   
-  // Emit player join event
-  eventBus.emit('player:join', player);
-  
-  // Render waiting room
-  renderWaitingRoom(container);
-  
-  console.log(`Player ${nickname} joined with ID ${playerId}`);
-  
-  // Start checking for auto-start conditions
-  if (players.length + 1 >= 2) { // +1 because the new player isn't in the array yet
-    startLobbyTimer(container);
-  }
+  // Try to connect to the WebSocket server
+  import('../multiplayer/socket').then(({ connectToServer, ConnectionState, getConnectionState }) => {
+    connectToServer(nickname).then((connected) => {
+      // Clear the connection timeout
+      clearTimeout(connectionTimeoutId);
+
+      if (connected) {
+        console.log('Connected to WebSocket server');
+
+        // Create a temporary player object with a generated ID
+        // The server will assign the real ID later
+        const tempId = `temp-${Date.now()}`;
+        const player: Player = {
+          id: tempId,
+          nickname: nickname,
+          color: PLAYER_COLORS[0], // Use the first color
+          ready: true
+        };
+
+        // Update player store with this temporary player
+        playerStore.setState({
+          currentPlayer: player,
+          players: [player],
+          gameState: 'waiting'
+        });
+
+        // Render waiting room
+        renderWaitingRoom(container);
+
+        // Send player join message to server
+        import('../multiplayer/socket').then(({ sendMessage }) => {
+          sendMessage({
+            type: 'player:join',
+            data: {
+              nickname: nickname
+            }
+          });
+        });
+        // Start the lobby timer
+        startLobbyTimer(container);
+      } else {
+        console.error('Failed to connect to server, switching to offline mode');
+        startOfflineMode(nickname, container);
+      }
+    }).catch((error) => {
+      // Clear the connection timeout
+      clearTimeout(connectionTimeoutId);
+      
+      console.error('Error connecting to server:', error);
+      startOfflineMode(nickname, container);
+    });
+  }).catch((error) => {
+    // Clear the connection timeout
+    clearTimeout(connectionTimeoutId);
+    
+    console.error('Error importing socket module:', error);
+    startOfflineMode(nickname, container);
+  });
 }
 
 // Start the lobby timer to check if we should start countdown
@@ -340,7 +425,7 @@ function startCountdown(container: HTMLElement): void {
     
     // If already playing, clear the interval
     if (gameState === 'playing') {
-      clearInterval(countdownTimerInterval);
+      // clearInterval(countdownTimerInterval);
       countdownTimerInterval = null;
       return;
     }
@@ -411,27 +496,29 @@ function renderWaitingRoom(container: HTMLElement): void {
   
   // Create player counter
   const counterContainer = document.createElement('div');
+  counterContainer.className = 'player-counter';
   counterContainer.style.cssText = `
     display: flex;
-    flex-direction: column;
     align-items: center;
-    margin-bottom: 3rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+    font-size: 2rem;
   `;
   
-  const counterLabel = document.createElement('div');
-  counterLabel.textContent = 'Players:';
-  counterLabel.style.cssText = `
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-  `;
-  
-  const counter = document.createElement('div');
-  counter.textContent = `${players.length} / 4`;
-  counter.style.cssText = `
-    font-size: 3rem;
+  const playerCount = document.createElement('span');
+  playerCount.className = 'player-count';
+  playerCount.textContent = `${players.length} / 4`;
+  playerCount.style.cssText = `
+    color: #FFC107;
     font-weight: bold;
-    color: ${players.length === 4 ? '#4CAF50' : '#FFC107'};
+    font-size: 3rem;
   `;
+  
+  // Log the players list for debugging
+  console.log('Rendering waiting room with players:', players);
+  
+  counterContainer.appendChild(document.createTextNode('Players: '));
+  counterContainer.appendChild(playerCount);
   
   // Show timer information
   if (gameState === 'waiting' && players.length >= 2 && players.length < 4) {
@@ -487,31 +574,36 @@ function renderWaitingRoom(container: HTMLElement): void {
       align-items: center;
       padding: 1rem;
       margin-bottom: 0.5rem;
-      background-color: #333;
+      background-color: rgba(0, 0, 0, 0.3);
       border-radius: 4px;
-      border-left: 5px solid ${player.color};
+      border-left: 4px solid ${player.color || PLAYER_COLORS[index % PLAYER_COLORS.length]};
     `;
     
     const playerNumber = document.createElement('div');
+    playerNumber.className = 'player-number';
     playerNumber.textContent = `Player ${index + 1}`;
     playerNumber.style.cssText = `
       font-weight: bold;
       margin-right: 1rem;
-      color: ${player.color};
+      color: ${player.color || PLAYER_COLORS[index % PLAYER_COLORS.length]};
     `;
     
     const playerName = document.createElement('div');
+    playerName.className = 'player-name';
     playerName.textContent = player.nickname;
     playerName.style.cssText = `
       flex-grow: 1;
     `;
     
+    // Check if this is the current player
+    const isCurrentPlayer = currentPlayer && player.id === currentPlayer.id;
+    
     const playerStatus = document.createElement('div');
-    playerStatus.textContent = player.ready ? 'Ready' : 'Not Ready';
+    playerStatus.className = 'player-status';
+    playerStatus.textContent = isCurrentPlayer ? 'Ready' : 'Ready';
     playerStatus.style.cssText = `
-      font-style: italic;
-      margin-left: 1rem;
-      color: ${player.ready ? '#4CAF50' : '#f44336'};
+      color: #4CAF50;
+      font-weight: bold;
     `;
     
     playerItem.appendChild(playerNumber);
@@ -542,8 +634,8 @@ function renderWaitingRoom(container: HTMLElement): void {
   });
   
   // Add elements to the DOM
-  counterContainer.appendChild(counterLabel);
-  counterContainer.appendChild(counter);
+  counterContainer.appendChild(document.createTextNode('Players: '));
+  counterContainer.appendChild(playerCount);
   
   playerList.appendChild(playerListTitle);
   
@@ -579,10 +671,93 @@ function renderWaitingRoom(container: HTMLElement): void {
 
 // Start the game
 function startGame(): void {
-  // Emit game start event
-  eventBus.emit('game:start', {});
+  console.log('Starting game...');
   
-  console.log('Game started!');
+  // Send game:start message to the server
+  import('../multiplayer/socket').then(({ sendMessage }) => {
+    sendMessage({
+      type: 'game:start',
+      data: {}
+    });
+    
+    console.log('Sent game:start message to server');
+  });
+  
+  // Update game state to playing
+  playerStore.setState({
+    gameState: 'playing'
+  });
+  
+  // Import and initialize the game
+  import('./init').then(({ initGame }) => {
+    console.log('Initializing game...');
+    initGame();
+  }).catch(error => {
+    console.error('Failed to initialize game:', error);
+  });
+}
+
+// Function to start the game in offline mode
+function startOfflineMode(nickname: string, container: HTMLElement): void {
+  // Create a player object with a generated ID
+  const playerId = `player-${Date.now()}`;
+  const player = {
+    id: playerId,
+    nickname: nickname,
+    color: PLAYER_COLORS[0], // Use the first color
+    ready: true
+  };
+  
+  // Update player store
+  playerStore.setState({
+    currentPlayer: player,
+    players: [player],
+    gameState: 'waiting' // Set to waiting room state
+  });
+  
+  // Clear the container
+  container.innerHTML = '';
+  
+  // Render the waiting room
+  renderWaitingRoom(container);
+  
+  // Add a button to start the game (for offline mode)
+  const startButton = document.createElement('button');
+  startButton.textContent = 'Start Game (Offline)';
+  startButton.style.margin = '20px auto';
+  startButton.style.padding = '10px 20px';
+  startButton.style.backgroundColor = '#4CAF50';
+  startButton.style.color = 'white';
+  startButton.style.border = 'none';
+  startButton.style.borderRadius = '4px';
+  startButton.style.cursor = 'pointer';
+  startButton.style.display = 'block';
+  
+  startButton.addEventListener('click', () => {
+    // Update game state
+    playerStore.setState({
+      ...playerStore.getState(),
+      gameState: 'playing'
+    });
+    
+    // Start the game
+    const app = document.getElementById('app');
+    if (!app) {
+      console.error('App element not found!');
+      return;
+    }
+    
+    // Start the game with the app container
+    import('./init').then(({ startGame }) => {
+      console.log('Starting game in offline mode...');
+      startGame(app);
+    }).catch(error => {
+      console.error('Failed to start game:', error);
+    });
+  });
+  
+  // Add the start button to the container
+  container.appendChild(startButton);
 }
 
 // Export for use in other modules

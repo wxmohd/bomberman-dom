@@ -1,5 +1,6 @@
 // Player entity logic
 import { eventBus } from '../../framework/events';
+import { sendPlayerMove, sendPlaceBomb, getPlayerId } from '../multiplayer/socket';
 
 export enum Direction {
   UP,
@@ -38,20 +39,39 @@ export class Player {
   private bombCapacity: number = 1;
   private explosionRange: number = 1;
   
+  // Bomb tracking
+  private activeBombs: number = 0;
+  
+  // Remote player flag
+  private isRemotePlayer: boolean = false;
+  
   constructor(
     public id: string, 
     public nickname: string,
     startX: number = 0,
-    startY: number = 0
+    startY: number = 0,
+    isRemote: boolean = false
   ) {
     this.x = startX;
     this.y = startY;
+    this.isRemotePlayer = isRemote;
     
     // Listen for power-up events
     eventBus.on('powerup:applied', this.handlePowerUp.bind(this));
     
     // Listen for hit events
     eventBus.on('player:hit', this.handleHit.bind(this));
+    
+    // If this is a remote player, listen for movement updates
+    if (this.isRemotePlayer) {
+      eventBus.on('player:moved', this.handleRemoteMove.bind(this));
+    }
+    
+    // Listen for bomb placement events
+    eventBus.on('bomb:placed', this.handleBombPlaced.bind(this));
+    
+    // Listen for bomb explosion events
+    eventBus.on('bomb:explode', this.handleBombExploded.bind(this));
   }
   
   // Get current position
@@ -74,6 +94,9 @@ export class Player {
       this.moving = false;
       return;
     }
+    
+    // Skip movement logic for remote players - they'll be moved by server updates
+    if (this.isRemotePlayer) return;
     
     this.direction = direction;
     this.moving = true;
@@ -106,7 +129,24 @@ export class Player {
       
       // Emit position update event
       this.emitPositionUpdate();
+      
+      // Send position update to server if this is the local player
+      if (!this.isRemotePlayer && this.id === getPlayerId()) {
+        sendPlayerMove(this.getPosition(), direction);
+      }
     }
+  }
+  
+  // Handle remote player movement
+  private handleRemoteMove(data: any): void {
+    // Only process if this is for this player
+    if (data.id !== this.id) return;
+    
+    // Update position from server data
+    this.x = data.position.x;
+    this.y = data.position.y;
+    this.direction = data.direction;
+    this.moving = data.direction !== Direction.NONE;
   }
   
   // Emit position update event
@@ -116,6 +156,60 @@ export class Player {
       x: this.x,
       y: this.y
     });
+  }
+  
+  // Place a bomb at the current position
+  public placeBomb(): boolean {
+    // Skip for remote players - they'll place bombs via server updates
+    if (this.isRemotePlayer) return false;
+    
+    // Check if player can place more bombs
+    if (this.activeBombs >= this.bombCapacity) {
+      return false;
+    }
+    
+    // Round position to nearest grid cell
+    const gridX = Math.round(this.x);
+    const gridY = Math.round(this.y);
+    
+    // Emit bomb placed event
+    eventBus.emit('bomb:placed', {
+      id: `bomb_${this.id}_${Date.now()}`,
+      ownerId: this.id,
+      x: gridX,
+      y: gridY,
+      range: this.explosionRange
+    });
+    
+    // Increment active bombs count
+    this.activeBombs++;
+    
+    // Send bomb placement to server if this is the local player
+    if (!this.isRemotePlayer && this.id === getPlayerId()) {
+      sendPlaceBomb({ x: gridX, y: gridY }, this.explosionRange);
+    }
+    
+    return true;
+  }
+  
+  // Handle bomb placed event
+  private handleBombPlaced(data: any): void {
+    // Only process if this is for this player
+    if (data.ownerId !== this.id) return;
+    
+    // For remote players, increment active bombs count
+    if (this.isRemotePlayer) {
+      this.activeBombs++;
+    }
+  }
+  
+  // Handle bomb exploded event
+  private handleBombExploded(data: any): void {
+    // Only process if this is for this player
+    if (data.ownerId !== this.id) return;
+    
+    // Decrement active bombs count
+    this.activeBombs = Math.max(0, this.activeBombs - 1);
   }
   
   // Handle power-up application

@@ -81,8 +81,8 @@ function placeWalls(grid: CellType[][]): Block[] {
     grid[0][i] = CellType.WALL;
     grid[GRID_HEIGHT - 1][i] = CellType.WALL;
     
-    walls.push(new Block(i, 0, true));
-    walls.push(new Block(i, GRID_HEIGHT - 1, true));
+    walls.push(new Block(`wall-top-${i}`, i, 0, true));
+    walls.push(new Block(`wall-bottom-${i}`, i, GRID_HEIGHT - 1, true));
   }
   
   // Left and right borders
@@ -90,15 +90,15 @@ function placeWalls(grid: CellType[][]): Block[] {
     grid[i][0] = CellType.WALL;
     grid[i][GRID_WIDTH - 1] = CellType.WALL;
     
-    walls.push(new Block(0, i, true));
-    walls.push(new Block(GRID_WIDTH - 1, i, true));
+    walls.push(new Block(`wall-left-${i}`, 0, i, true));
+    walls.push(new Block(`wall-right-${i}`, GRID_WIDTH - 1, i, true));
   }
   
   // Place grid pattern walls (every 2 tiles)
   for (let y = 2; y < GRID_HEIGHT - 1; y += 2) {
     for (let x = 2; x < GRID_WIDTH - 1; x += 2) {
       grid[y][x] = CellType.WALL;
-      walls.push(new Block(x, y, true));
+      walls.push(new Block(`wall-inner-${x}-${y}`, x, y, true));
     }
   }
   
@@ -120,7 +120,7 @@ function placeBlocks(grid: CellType[][]): Block[] {
       // Random chance to place a block
       if (Math.random() < blockDensity) {
         grid[y][x] = CellType.BLOCK;
-        blocks.push(new Block(x, y, false));
+        blocks.push(new Block(`block-${x}-${y}`, x, y, false));
       }
     }
   }
