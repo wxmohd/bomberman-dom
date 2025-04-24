@@ -1,6 +1,7 @@
 // Game constants
-export const GRID_SIZE = 13;
-export const TILE_SIZE = 48;
+export const GRID_WIDTH = 15;
+export const GRID_HEIGHT = 17;
+export const TILE_SIZE = 50;
 export const FPS = 60;
 export const PLAYER_SPEED = 2;
 export const BOMB_TIMER = 2000; // ms
