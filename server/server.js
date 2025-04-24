@@ -5,10 +5,33 @@ const express = require('express');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// Create WebSocket server with proper configuration
+const wss = new WebSocket.Server({ 
+  server,
+  // No path restriction to accept connections from any path
+  perMessageDeflate: false // Disable per-message deflate to avoid issues
+});
+
+// Log when server starts
+console.log('WebSocket server created');
+
+// Debug: Log all WebSocket upgrade requests
+server.on('upgrade', (request, socket, head) => {
+  console.log(`Received upgrade request from ${request.url}`);
+});
+
+// Enable CORS for all routes
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
 
 // Serve static files from the public directory
 app.use(express.static('public'));
+
+// We'll use the PORT defined at the end of the file
 
 // Game sessions management
 const gameSessions = {
@@ -38,22 +61,50 @@ const startPositions = [
 const connectionsByNickname = {};
 const connectionsById = {};
 
-// Handle WebSocket connections
-wss.on('connection', (ws) => {
-  console.log('Client connected');
+// Handle new WebSocket connection
+wss.on('connection', (ws, req) => {
+  console.log('New connection established');
   
-  // Assign a unique ID to the connection
-  const connectionId = generateId();
-  ws.connectionId = connectionId;
+  // Assign a unique connection ID
+  ws.id = generateId();
   
-  // Store connection by ID
-  connectionsById[connectionId] = ws;
+  // Send welcome message
+  sendToClient(ws, {
+    type: 'connection:established',
+    data: {
+      message: 'Connected to Bomberman server',
+      connectionId: ws.id
+    }
+  });
   
-  // Handle messages from clients
+  // Handle messages from client
   ws.on('message', (message) => {
     try {
-      const data = JSON.parse(message);
-      handleMessage(ws, data);
+      const parsedMessage = JSON.parse(message);
+      const { type, data } = parsedMessage;
+      
+      console.log(`Received message: ${type} from ${ws.nickname || 'unknown'}`);
+      
+      switch (type) {
+        case 'player:join':
+          handlePlayerJoin(ws, data);
+          break;
+        case 'player:move':
+          handlePlayerMove(ws, data);
+          break;
+        case 'player:placeBomb':
+          handlePlaceBomb(ws, data);
+          break;
+        case 'chat:message':
+          handleChatMessage(ws, data);
+          break;
+        case 'game:start':
+          console.log('Received game:start message from client');
+          startGame();
+          break;
+        default:
+          console.log(`Unknown message type: ${type}`);
+      }
     } catch (error) {
       console.error('Error parsing server message:', error);
     }
@@ -461,7 +512,16 @@ function calculateExplosionCoordinates(x, y, range) {
 
 // Handle chat messages
 function handleChatMessage(ws, payload) {
-  const { message } = payload;
+  console.log('Handling chat message:', payload);
+  
+  // Check if payload is properly structured
+  if (!payload || (!payload.message && !(payload.payload && payload.payload.message))) {
+    console.error('Invalid chat message payload:', payload);
+    return;
+  }
+  
+  // Extract message from payload (handle both formats)
+  const message = payload.message || (payload.payload && payload.payload.message);
   const playerId = ws.playerId;
   
   // Validate player exists
@@ -487,16 +547,33 @@ function updateWaitingRoom() {
   // Get all players from the active session
   const players = Object.values(gameSessions.activeSession.players).map(p => ({
     id: p.id,
-    nickname: p.nickname
+    nickname: p.nickname,
+    ready: true, // All players are ready by default
+    color: p.color || '#' + Math.floor(Math.random()*16777215).toString(16) // Generate random color if not set
   }));
   
   // Get the total player count
   const playerCount = players.length;
   
   console.log(`Updating waiting room: ${playerCount} players`);
-  console.log('Players:', players);
+  console.log('Players:', JSON.stringify(players));
   
-  // Broadcast waiting room update to all clients
+  // Send individual updates to each client with their ID highlighted
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client.playerId) {
+      sendToClient(client, {
+        type: 'waitingRoom:update',
+        data: {
+          players: players,
+          count: playerCount,
+          maxPlayers: gameSessions.activeSession.maxPlayers,
+          yourId: client.playerId
+        }
+      });
+    }
+  });
+  
+  // Also broadcast to all clients (for those who might not have an ID yet)
   broadcastToAll({
     type: 'waitingRoom:update',
     data: {
@@ -658,6 +735,7 @@ function sendToClient(ws, message) {
 
 // Broadcast message to all connected clients
 function broadcastToAll(message) {
+  console.log(`Broadcasting: ${message.type}`, message.data ? message.data : '');
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
@@ -670,8 +748,11 @@ function generateId() {
   return Math.random().toString(36).substr(2, 9);
 }
 
-// Start the server
-const PORT = process.env.PORT || 5173;
+// Start the server on a different port than the Vite dev server
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`WebSocket server is ready to accept connections`);
 });
+
+// This was a duplicate broadcastToAll function - removed

@@ -1,5 +1,6 @@
 // Game initialization logic
-import { generateMap, resetMap } from './map';
+import { generateMap } from './map';
+import { resetMap } from './map';
 import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
 import { clearPowerUps } from './powerups';
@@ -13,7 +14,7 @@ import { BombSystem } from './BombSystem';
 import { BombManager } from './BombManager';
 import { BombController } from './BombController';
 import { addTestPlayer } from './test-player';
-import { PLAYER_STARTING_POSITIONS } from './map';
+// import { PLAYER_STARTING_POSITIONS } from './map';
 import { TILE_SIZE } from './constants';
 import { initChatUI } from '../ui/chatUI';
 
@@ -85,7 +86,7 @@ export function initGame() {
 }
 
 // Start a new game
-function startGame(container: HTMLElement) {
+export function startGame(container: HTMLElement) {
   // Clear main container
   container.innerHTML = '';
   

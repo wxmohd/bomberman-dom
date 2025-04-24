@@ -21,6 +21,15 @@ export enum ConnectionState {
 
 let connectionState: ConnectionState = ConnectionState.DISCONNECTED;
 
+// Track connections by nickname and by connection ID
+const connectionsByNickname = {};
+const connectionsById = {};
+
+// Get current connection state
+export function getConnectionState(): ConnectionState {
+  return connectionState;
+}
+
 // Connect to WebSocket server
 export function connectToServer(nickname: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
@@ -34,18 +43,32 @@ export function connectToServer(nickname: string): Promise<boolean> {
     connectionState = ConnectionState.CONNECTING;
     
     // Create WebSocket connection
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname === 'localhost' ? 'localhost:5173' : window.location.host;
-    const wsUrl = `${protocol}//${host}`;
+    // Use a direct WebSocket URL to connect to the server on port 3000
+    const wsUrl = 'ws://localhost:3000';
+    
+    // Log the connection attempt
     
     console.log(`Connecting to WebSocket server at ${wsUrl}`);
     socket = new WebSocket(wsUrl);
+    
+    // Add connection timeout with a longer duration
+    const connectionTimeout = setTimeout(() => {
+      if (connectionState === ConnectionState.CONNECTING) {
+        console.error('Connection timeout - server might not be running');
+        connectionState = ConnectionState.FAILED;
+        socket?.close();
+        reject(new Error('Connection timeout'));
+      }
+    }, 10000); // 10 second timeout for slower connections
     
     // Connection opened
     socket.addEventListener('open', () => {
       console.log('Connected to server');
       connectionState = ConnectionState.CONNECTED;
       reconnectAttempts = 0;
+      
+      // Clear the connection timeout
+      clearTimeout(connectionTimeout);
       
       // Send join message with nickname
       sendMessage({
@@ -170,9 +193,49 @@ export function sendMessage(message: any): boolean {
 
 // Handle messages from the server
 function handleServerMessage(message: any): void {
+  console.log('Received server message:', message);
   const { type, data } = message;
   
   switch (type) {
+    case 'connection:established':
+      console.log('Connection established with server:', data.message);
+      eventBus.emit('connection:established', data);
+      break;
+      
+    case 'waitingRoom:update':
+      console.log('Waiting room update:', data);
+      // Update the player store with the players from the server
+      import('../game/lobby').then(({ playerStore }) => {
+        const currentState = playerStore.getState();
+        let currentPlayer = currentState.currentPlayer;
+        
+        // If we have a yourId field, find the current player in the players list
+        if (data.yourId && currentPlayer) {
+          // Find the current player in the updated players list
+          const updatedCurrentPlayer = data.players.find(p => p.id === data.yourId);
+          if (updatedCurrentPlayer) {
+            // Update the current player with server data but keep local properties
+            currentPlayer = {
+              ...currentPlayer,
+              ...updatedCurrentPlayer
+            };
+          }
+        }
+        
+        // Update the player store with all players from the server
+        playerStore.setState({
+          ...currentState,
+          players: data.players,
+          currentPlayer: currentPlayer
+        });
+        
+        console.log('Updated player store with players:', data.players);
+        
+        // Emit waiting room update event
+        eventBus.emit('waitingRoom:update', data);
+      });
+      break;
+      
     case 'player:joined':
       // Store player ID
       playerId = data.id;
@@ -275,11 +338,7 @@ function handleServerMessage(message: any): void {
       eventBus.emit('powerup:collected', data);
       break;
       
-    case 'waitingRoom:update':
-      // Waiting room state updated
-      console.log('Waiting room update received:', data);
-      eventBus.emit('waitingRoom:update', data);
-      break;
+    // Removed duplicate waitingRoom:update case
       
     default:
       console.log(`Unknown message type: ${type}`);
@@ -310,18 +369,17 @@ export function sendPlaceBomb(position: PlayerPosition, range: number): void {
 
 // Chat WebSocket integration
 export function sendChatMessage(message: string): void {
+  console.log('Sending chat message:', message);
   sendMessage({
     type: 'chat:message',
-    payload: {
+    data: {
       message
     }
   });
 }
 
-// Get connection state
-export function getConnectionState(): ConnectionState {
-  return connectionState;
-}
+// This function is already defined above
+// Removed duplicate declaration
 
 // Get player ID
 export function getPlayerId(): string | null {
