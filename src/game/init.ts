@@ -15,6 +15,8 @@ import { BombController } from './BombController';
 import { addTestPlayer } from './test-player';
 import { PLAYER_STARTING_POSITIONS } from './map';
 import { TILE_SIZE } from './constants';
+import { initChatUI } from '../ui/chatUI';
+
 
 // Map data storage
 let currentMapData: any = null;
@@ -183,6 +185,9 @@ function startGame(container: HTMLElement) {
   
   // Create power-up test buttons
   createPowerUpTestButton();
+  
+  // Initialize chat UI
+  initChatUI(document.body);
   
   // Generate map
   currentMapData = generateMap();
