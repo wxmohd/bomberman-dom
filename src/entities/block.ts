@@ -6,12 +6,31 @@ import { eventBus } from '../../framework/events';
 export class Block {
   private element: HTMLElement | null = null;
   private destroyed = false;
+  private isRemoteBlock = false;
   
   constructor(
+    public id: string,
     public x: number, 
     public y: number, 
-    public indestructible: boolean
-  ) {}
+    public indestructible: boolean,
+    isRemote: boolean = false
+  ) {
+    this.isRemoteBlock = isRemote;
+    
+    // Listen for block destroyed events from server if this is a remote block
+    if (this.isRemoteBlock) {
+      eventBus.on('block:destroyed', this.handleRemoteDestruction.bind(this));
+    }
+  }
+  
+  // Handle remote destruction event from server
+  private handleRemoteDestruction(data: any): void {
+    // Check if this event is for this block
+    if (data.id !== this.id) return;
+    
+    // Destroy this block
+    this.destroy();
+  }
   
   // Render the block to the DOM
   render(container: HTMLElement): void {
@@ -61,7 +80,11 @@ export class Block {
       }, 300);
       
       // Emit block destroyed event
-      eventBus.emit('block:destroyed', { x: this.x, y: this.y });
+      eventBus.emit('block:destroyed', { 
+        id: this.id,
+        x: this.x, 
+        y: this.y 
+      });
       
       return true;
     }
@@ -80,5 +103,15 @@ export class Block {
       this.element.parentNode.removeChild(this.element);
       this.element = null;
     }
+  }
+  
+  // Check if block is destroyed
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+  
+  // Check if this is a remote block
+  isRemote(): boolean {
+    return this.isRemoteBlock;
   }
 }

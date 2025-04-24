@@ -55,6 +55,41 @@ export function initLobby(container: HTMLElement): void {
     }
   });
   
+  // Listen for waiting room updates from the server
+  eventBus.on('waitingRoom:update', (data) => {
+    console.log('Received waiting room update:', data);
+    
+    // Update players list from server data
+    if (data.players) {
+      // Map server players to our player format
+      const serverPlayers = data.players.map((p: any) => {
+        // Get color for this player (either existing or new)
+        const existingPlayer = playerStore.getState().players.find(existing => existing.id === p.id);
+        const color = existingPlayer ? existingPlayer.color : 
+          PLAYER_COLORS[playerStore.getState().players.length % PLAYER_COLORS.length];
+        
+        return {
+          id: p.id,
+          nickname: p.nickname,
+          color: color,
+          ready: true
+        };
+      });
+      
+      // Keep our current player in the state
+      const { currentPlayer } = playerStore.getState();
+      
+      // Update the store with server players
+      playerStore.setState({
+        players: serverPlayers,
+        gameState: 'waiting'
+      });
+      
+      // Update waiting room UI
+      renderWaitingRoom(container);
+    }
+  });
+  
   // Listen for game start events
   eventBus.on('game:start', () => {
     playerStore.setState({
@@ -202,47 +237,53 @@ function renderLoginScreen(container: HTMLElement): void {
 
 // Join the game with a nickname
 function joinGame(nickname: string, container: HTMLElement): void {
-  // Generate a unique player ID
-  const playerId = `player-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  
-  // Get available color
-  const { players } = playerStore.getState();
-  const availableColors = PLAYER_COLORS.filter(color => 
-    !players.find(p => p.color === color)
-  );
-  
-  const playerColor = availableColors.length > 0 
-    ? availableColors[0] 
-    : PLAYER_COLORS[players.length % PLAYER_COLORS.length];
-  
-  // Create player object
-  const player: Player = {
-    id: playerId,
-    nickname,
-    color: playerColor,
-    ready: true
-  };
-  
-  // Update player store
+  // Update game state to waiting
   playerStore.setState({
-    currentPlayer: player,
-    players: [...players, player],
-    gameState: 'waiting',
-    lobbyStartTime: players.length === 0 ? Date.now() : playerStore.getState().lobbyStartTime
+    gameState: 'waiting'
   });
   
-  // Emit player join event
-  eventBus.emit('player:join', player);
-  
-  // Render waiting room
-  renderWaitingRoom(container);
-  
-  console.log(`Player ${nickname} joined with ID ${playerId}`);
-  
-  // Start checking for auto-start conditions
-  if (players.length + 1 >= 2) { // +1 because the new player isn't in the array yet
-    startLobbyTimer(container);
-  }
+  // Connect to the WebSocket server
+  import('../multiplayer/socket').then(({ connectToServer }) => {
+    connectToServer(nickname)
+      .then(() => {
+        console.log(`Connected to server with nickname: ${nickname}`);
+        
+        // Listen for player joined event from the server
+        eventBus.on('player:joined', (data) => {
+          console.log('Player joined event received:', data);
+          
+          // Create player object with server-assigned ID
+          const player = {
+            id: data.id,
+            nickname: data.nickname,
+            color: PLAYER_COLORS[playerStore.getState().players.length % PLAYER_COLORS.length],
+            ready: true
+          };
+          
+          // Update current player in store
+          playerStore.setState({
+            currentPlayer: player
+          });
+          
+          console.log(`Player ${nickname} joined with server ID ${data.id}`);
+        });
+        
+        // Render waiting room (will be updated when server sends waitingRoom:update)
+        renderWaitingRoom(container);
+      })
+      .catch(error => {
+        console.error('Failed to connect to server:', error);
+        alert('Failed to connect to the game server. Please try again.');
+        
+        // Reset game state to login
+        playerStore.setState({
+          gameState: 'login'
+        });
+        
+        // Show login screen again
+        renderLoginScreen(container);
+      });
+  });
 }
 
 // Start the lobby timer to check if we should start countdown
@@ -340,7 +381,7 @@ function startCountdown(container: HTMLElement): void {
     
     // If already playing, clear the interval
     if (gameState === 'playing') {
-      clearInterval(countdownTimerInterval);
+      // clearInterval(countdownTimerInterval);
       countdownTimerInterval = null;
       return;
     }
@@ -411,27 +452,26 @@ function renderWaitingRoom(container: HTMLElement): void {
   
   // Create player counter
   const counterContainer = document.createElement('div');
+  counterContainer.className = 'player-counter';
   counterContainer.style.cssText = `
     display: flex;
-    flex-direction: column;
     align-items: center;
-    margin-bottom: 3rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+    font-size: 2rem;
   `;
   
-  const counterLabel = document.createElement('div');
-  counterLabel.textContent = 'Players:';
-  counterLabel.style.cssText = `
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-  `;
-  
-  const counter = document.createElement('div');
-  counter.textContent = `${players.length} / 4`;
-  counter.style.cssText = `
-    font-size: 3rem;
+  const playerCount = document.createElement('span');
+  playerCount.className = 'player-count';
+  playerCount.textContent = `${players.length} / 4`;
+  playerCount.style.cssText = `
+    color: #FFC107;
     font-weight: bold;
-    color: ${players.length === 4 ? '#4CAF50' : '#FFC107'};
+    font-size: 3rem;
   `;
+  
+  counterContainer.appendChild(document.createTextNode('Players: '));
+  counterContainer.appendChild(playerCount);
   
   // Show timer information
   if (gameState === 'waiting' && players.length >= 2 && players.length < 4) {
@@ -542,8 +582,8 @@ function renderWaitingRoom(container: HTMLElement): void {
   });
   
   // Add elements to the DOM
-  counterContainer.appendChild(counterLabel);
-  counterContainer.appendChild(counter);
+  counterContainer.appendChild(document.createTextNode('Players: '));
+  counterContainer.appendChild(playerCount);
   
   playerList.appendChild(playerListTitle);
   

@@ -1,5 +1,6 @@
 // Bomb entity logic
 import { eventBus } from '../../framework/events';
+import { getPlayerId } from '../multiplayer/socket';
 
 export interface ExplosionCoordinates {
   x: number;
@@ -11,8 +12,10 @@ export class Bomb {
   private explosionRange: number = 1; // Default explosion range
   private exploded: boolean = false;
   private explosionTimer: number | null = null;
+  private isRemoteBomb: boolean = false;
   
   constructor(
+    public id: string,
     public ownerId: string, 
     public x: number, 
     public y: number,
@@ -23,8 +26,17 @@ export class Bomb {
       this.explosionRange = explosionRange;
     }
     
+    // Determine if this is a remote bomb (placed by another player)
+    this.isRemoteBomb = this.ownerId !== getPlayerId();
+    
     // Start the countdown as soon as the bomb is created
-    this.startCountdown();
+    // Only start countdown for local bombs - remote bombs will be controlled by server
+    if (!this.isRemoteBomb) {
+      this.startCountdown();
+    } else {
+      // Listen for explosion events from server for remote bombs
+      eventBus.on('bomb:explode', this.handleRemoteExplosion.bind(this));
+    }
   }
 
   // Start the bomb countdown
@@ -42,6 +54,15 @@ export class Bomb {
     }
   }
 
+  // Handle remote explosion event from server
+  private handleRemoteExplosion(data: any): void {
+    // Check if this event is for this bomb
+    if (data.id !== this.id) return;
+    
+    // Explode this bomb
+    this.explode();
+  }
+
   // Explode the bomb
   private explode(): void {
     if (this.exploded) return; // Prevent multiple explosions
@@ -53,6 +74,7 @@ export class Bomb {
     
     // Emit explosion event with coordinates
     eventBus.emit('bomb:explode', {
+      id: this.id,
       ownerId: this.ownerId,
       origin: { x: this.x, y: this.y },
       coordinates: explosionCoordinates
@@ -104,5 +126,10 @@ export class Bomb {
   public forceExplode(): void {
     this.cancelCountdown();
     this.explode();
+  }
+  
+  // Check if this is a remote bomb
+  public isRemote(): boolean {
+    return this.isRemoteBomb;
   }
 }
