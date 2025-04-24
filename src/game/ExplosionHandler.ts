@@ -1,6 +1,7 @@
 // Explosion handler - manages collision detection and effects of explosions
 import { eventBus } from '../../framework/events';
 import { ExplosionCoordinates } from '../entities/bomb';
+import { GRID_WIDTH, GRID_HEIGHT } from './constants';
 
 // Types of game elements that can be affected by explosions
 export enum CollisionType {
@@ -24,15 +25,17 @@ interface ExplosionEvent {
 }
 
 export class ExplosionHandler {
-  private gridSize: number;
+  private gridWidth: number;
+  private gridHeight: number;
   private grid: GridCell[][];
   
-  constructor(gridSize: number) {
-    this.gridSize = gridSize;
+  constructor(gridWidth: number = GRID_WIDTH, gridHeight: number = GRID_HEIGHT) {
+    this.gridWidth = gridWidth;
+    this.gridHeight = gridHeight;
     
     // Initialize empty grid
-    this.grid = Array(gridSize).fill(null).map(() => 
-      Array(gridSize).fill(null).map(() => ({ type: CollisionType.EMPTY }))
+    this.grid = Array(gridHeight).fill(null).map(() => 
+      Array(gridWidth).fill(null).map(() => ({ type: CollisionType.EMPTY }))
     );
     
     // Listen for explosion events
@@ -115,7 +118,7 @@ export class ExplosionHandler {
   // Process explosion at a specific coordinate
   private processExplosionAt(x: number, y: number, ownerId: string): CollisionType {
     // Check if coordinates are within grid bounds
-    if (x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize) {
+    if (x < 0 || x >= this.gridWidth || y < 0 || y >= this.gridHeight) {
       return CollisionType.EMPTY;
     }
     
