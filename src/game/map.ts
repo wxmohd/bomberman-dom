@@ -105,10 +105,26 @@ function placeWalls(grid: CellType[][]): Block[] {
   return walls;
 }
 
-// Place destructible blocks randomly
-function placeBlocks(grid: CellType[][]): Block[] {
+// Seeded random number generator for consistent maps across clients
+class SeededRandom {
+  private seed: number;
+  
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+  
+  // Generate a random number between 0 and 1 (like Math.random())
+  random(): number {
+    const x = Math.sin(this.seed++) * 10000;
+    return x - Math.floor(x);
+  }
+}
+
+// Place destructible blocks using seeded random generator
+function placeBlocks(grid: CellType[][], seed: number = Date.now()): Block[] {
   const blocks: Block[] = [];
   const blockDensity = 0.5; // 50% chance for available cells
+  const rng = new SeededRandom(seed);
   
   for (let y = 1; y < GRID_HEIGHT - 1; y++) {
     for (let x = 1; x < GRID_WIDTH - 1; x++) {
@@ -117,8 +133,8 @@ function placeBlocks(grid: CellType[][]): Block[] {
         continue;
       }
       
-      // Random chance to place a block
-      if (Math.random() < blockDensity) {
+      // Use seeded random chance to place a block
+      if (rng.random() < blockDensity) {
         grid[y][x] = CellType.BLOCK;
         blocks.push(new Block(x, y, false));
       }
@@ -129,13 +145,17 @@ function placeBlocks(grid: CellType[][]): Block[] {
 }
 
 // Generate the complete map
-export function generateMap(): MapData {
+export function generateMap(seed?: number): MapData {
+  // Use provided seed or generate a random one
+  const mapSeed = seed || Math.floor(Math.random() * 1000000);
+  console.log(`Generating map with seed: ${mapSeed}`);
+  
   const grid = createEmptyGrid();
   const walls = placeWalls(grid);
-  const blocks = placeBlocks(grid);
+  const blocks = placeBlocks(grid, mapSeed);
   
-  // Emit map generated event
-  eventBus.emit('map:generated', { grid, walls, blocks });
+  // Emit map generated event with the seed
+  eventBus.emit('map:generated', { grid, walls, blocks, seed: mapSeed });
   
   return { grid, walls, blocks };
 }

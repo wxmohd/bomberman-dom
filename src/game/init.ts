@@ -106,7 +106,8 @@ export function initGame() {
     if (controlsContainer) {
       controlsContainer.style.display = 'flex';
     }
-    startGame(app);
+    // Pass the game data to startGame to use the map seed
+    startGame(app, data);
   });
   
   // Listen for game reset event
@@ -116,7 +117,7 @@ export function initGame() {
 }
 
 // Start a new game
-function startGame(container: HTMLElement) {
+function startGame(container: HTMLElement, gameData?: any) {
   // Clear main container
   container.innerHTML = '';
   
@@ -217,8 +218,14 @@ function startGame(container: HTMLElement) {
   // Create power-up test buttons
   createPowerUpTestButton();
   
-  // Generate map
-  currentMapData = generateMap();
+  // Generate map with seed from server if available
+  if (gameData && gameData.mapSeed) {
+    console.log(`Using server-provided map seed: ${gameData.mapSeed}`);
+    currentMapData = generateMap(gameData.mapSeed);
+  } else {
+    console.log('No map seed provided, generating random map');
+    currentMapData = generateMap();
+  }
   
   // Initialize bomb system and player mechanics
   const mapContainer = getMapContainer();
