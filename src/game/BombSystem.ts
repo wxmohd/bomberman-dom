@@ -96,11 +96,12 @@ export class BombSystem {
   }
 
   // Place a bomb at a specific position (for programmatic bomb placement)
-  public placeBomb(playerId: string, x: number, y: number): boolean {
+  public placeBomb(playerId: string, x: number, y: number, explosionRange?: number): boolean {
     return this.bombManager.placeBomb({
       ownerId: playerId,
       x,
-      y
+      y,
+      explosionRange: explosionRange || 1 // Default to 1 if not specified
     });
   }
 }

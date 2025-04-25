@@ -68,6 +68,17 @@ export class Player {
     this.emitPositionUpdate();
   }
   
+  // Get current direction
+  public getDirection(): Direction {
+    return this.direction;
+  }
+  
+  // Set direction (for remote player synchronization)
+  public setDirection(direction: Direction): void {
+    this.direction = direction;
+    this.moving = direction !== Direction.NONE;
+  }
+  
   // Move in a direction
   public move(direction: Direction, deltaTime: number, collisionCallback: (x: number, y: number) => boolean): void {
     if (direction === Direction.NONE) {
@@ -219,11 +230,6 @@ export class Player {
   // Check if player is invulnerable
   public isInvulnerable(): boolean {
     return this.invulnerable;
-  }
-  
-  // Get current direction
-  public getDirection(): Direction {
-    return this.direction;
   }
   
   // Check if player is moving

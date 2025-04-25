@@ -1,0 +1,464 @@
+// Bomberman Game Server
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
+// Create Express app and HTTP server
+const app = express();
+const server = http.createServer(app);
+
+// Create Socket.IO server with CORS enabled
+const io = new Server(server, {
+  cors: {
+    origin: '*', // In production, restrict this to your domain
+    methods: ['GET', 'POST']
+  }
+});
+
+// Game state
+const gameState = {
+  players: {},
+  bombs: {},
+  powerups: {},
+  gameInProgress: false
+};
+
+// Lobby state
+const lobbyState = {
+  players: [],
+  maxPlayers: 4,
+  gameInProgress: false
+};
+
+// Player colors for visual identification
+const playerColors = [
+  '#FF5252', // Red
+  '#4CAF50', // Green
+  '#2196F3', // Blue
+  '#FFC107'  // Yellow
+];
+
+// Player connection handler
+io.on('connection', (socket) => {
+  console.log(`Player connected: ${socket.id}`);
+  
+  // Get nickname from query parameters
+  const nickname = socket.handshake.query.nickname || 'Player';
+  
+  // Handle player joining the lobby
+  socket.on('join_lobby', (data) => {
+    console.log(`Player ${socket.id} (${nickname}) joining lobby`);
+    
+    // Check if player is already in lobby
+    const existingPlayer = lobbyState.players.find(p => p.id === socket.id);
+    if (existingPlayer) {
+      console.log(`Player ${socket.id} already in lobby`);
+      return;
+    }
+    
+    // Check if lobby is full
+    if (lobbyState.players.length >= lobbyState.maxPlayers) {
+      socket.emit('error', { message: 'Lobby is full' });
+      return;
+    }
+    
+    // Check if game is in progress
+    if (lobbyState.gameInProgress) {
+      socket.emit('error', { message: 'Game is already in progress' });
+      return;
+    }
+    
+    // Assign player color
+    const playerColor = playerColors[lobbyState.players.length % playerColors.length];
+    
+    // Add player to lobby
+    lobbyState.players.push({
+      id: socket.id,
+      nickname,
+      isReady: false,
+      color: playerColor
+    });
+    
+    // Add player to game state for when game starts
+    gameState.players[socket.id] = {
+      id: socket.id,
+      nickname,
+      x: 0,
+      y: 0,
+      lives: 3,
+      stats: {
+        speed: 3,
+        bombCapacity: 1,
+        explosionRange: 1
+      },
+      isAlive: true,
+      score: 0,
+      color: playerColor
+    };
+    
+    // Send updated lobby state to all clients
+    io.emit('lobby_update', { lobby: lobbyState });
+    
+    // Broadcast player joined event
+    io.emit('player:joined', {
+      id: socket.id,
+      nickname,
+      timestamp: Date.now()
+    });
+  });
+  
+  // Handle player ready status change
+  socket.on('player_ready', (data) => {
+    console.log(`Player ${socket.id} ready status: ${data.isReady}`);
+    
+    // Find player in lobby
+    const playerIndex = lobbyState.players.findIndex(p => p.id === socket.id);
+    if (playerIndex === -1) {
+      console.log(`Player ${socket.id} not found in lobby`);
+      return;
+    }
+    
+    // Update player ready status
+    lobbyState.players[playerIndex].isReady = data.isReady;
+    
+    // Send updated lobby state to all clients
+    io.emit('lobby_update', { lobby: lobbyState });
+    
+    // Check if all players are ready to start the game
+    checkGameStart();
+  });
+  
+  // Send current game state to new player
+  socket.emit('game:state', {
+    gameId: 'game1',
+    state: gameState.gameInProgress ? 'playing' : 'waiting',
+    players: Object.values(gameState.players),
+    bombs: Object.values(gameState.bombs),
+    powerups: Object.values(gameState.powerups)
+  });
+  
+  // Handle player join event
+  socket.on('join', (data) => {
+    console.log(`Player ${socket.id} joined as ${data.nickname}`);
+    
+    // Update nickname if provided
+    if (data.nickname && gameState.players[socket.id]) {
+      gameState.players[socket.id].nickname = data.nickname;
+    }
+  });
+  
+  // Handle player movement
+  socket.on('move', (data) => {
+    if (!gameState.players[socket.id]) return;
+    
+    // Update player position
+    gameState.players[socket.id].x = data.x;
+    gameState.players[socket.id].y = data.y;
+    gameState.players[socket.id].direction = data.direction;
+    
+    // Broadcast movement to all other players
+    socket.broadcast.emit('move', {
+      playerId: socket.id,
+      x: data.x,
+      y: data.y,
+      direction: data.direction
+    });
+  });
+  
+  // Handle bomb placement
+  socket.on('drop_bomb', (data) => {
+    if (!gameState.players[socket.id]) return;
+    
+    // Create unique bomb ID
+    const bombId = `bomb_${socket.id}_${Date.now()}`;
+    
+    // Add bomb to game state
+    gameState.bombs[bombId] = {
+      id: bombId,
+      ownerId: socket.id,
+      x: data.x,
+      y: data.y,
+      explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange,
+      timeRemaining: 3000 // 3 seconds
+    };
+    
+    // Broadcast bomb placement to all players
+    io.emit('drop_bomb', {
+      bombId,
+      playerId: socket.id,
+      x: data.x,
+      y: data.y,
+      explosionRange: gameState.bombs[bombId].explosionRange
+    });
+    
+    // Set timeout for bomb explosion
+    setTimeout(() => {
+      // Remove bomb from game state
+      delete gameState.bombs[bombId];
+      
+      // Broadcast bomb explosion
+      io.emit('bomb:explode', {
+        bombId,
+        ownerId: socket.id,
+        x: data.x,
+        y: data.y,
+        explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange
+      });
+    }, 3000);
+  });
+  
+  // Handle power-up collection
+  socket.on('collect_powerup', (data) => {
+    if (!gameState.players[socket.id] || !gameState.powerups[data.powerupId]) return;
+    
+    // Get power-up data
+    const powerup = gameState.powerups[data.powerupId];
+    
+    // Apply power-up effect to player
+    switch (powerup.type) {
+      case 'bomb':
+        gameState.players[socket.id].stats.bombCapacity += 1;
+        break;
+      case 'flame':
+        gameState.players[socket.id].stats.explosionRange += 1;
+        break;
+      case 'speed':
+        gameState.players[socket.id].stats.speed += 1;
+        break;
+    }
+    
+    // Remove power-up from game state
+    delete gameState.powerups[data.powerupId];
+    
+    // Broadcast power-up collection to all players
+    io.emit('powerup:collected', {
+      powerupId: data.powerupId,
+      playerId: socket.id,
+      type: powerup.type,
+      x: powerup.x,
+      y: powerup.y
+    });
+  });
+  
+  // Handle chat messages
+  socket.on('chat', (data) => {
+    // Broadcast chat message to all players
+    io.emit('chat', {
+      playerId: socket.id,
+      nickname: gameState.players[socket.id]?.nickname || 'Unknown',
+      message: data.message,
+      timestamp: Date.now()
+    });
+  });
+  
+  // Handle player disconnect
+  socket.on('disconnect', () => {
+    console.log(`Player disconnected: ${socket.id}`);
+    
+    // Get player nickname before removing
+    const playerNickname = gameState.players[socket.id]?.nickname || 'Unknown';
+    
+    // Remove player from game state
+    delete gameState.players[socket.id];
+    
+    // Remove player from lobby
+    const playerIndex = lobbyState.players.findIndex(p => p.id === socket.id);
+    if (playerIndex !== -1) {
+      lobbyState.players.splice(playerIndex, 1);
+      
+      // Send updated lobby state to all clients
+      io.emit('lobby_update', { lobby: lobbyState });
+    }
+    
+    // Broadcast player left event
+    io.emit('player:left', {
+      id: socket.id,
+      nickname: playerNickname,
+      timestamp: Date.now()
+    });
+  });
+  
+  // Handle end game request
+  socket.on('end_game', () => {
+    console.log(`Player ${socket.id} requested to end the game`);
+    
+    // Reset lobby state
+    lobbyState.gameInProgress = false;
+    
+    // Reset all players' ready status
+    lobbyState.players.forEach(player => {
+      player.isReady = false;
+    });
+    
+    // Send updated lobby state to all clients
+    io.emit('lobby_update', { lobby: lobbyState });
+    
+    // Broadcast game ended event
+    io.emit('game:ended', {
+      reason: 'Player requested to end the game',
+      timestamp: Date.now()
+    });
+  });
+  
+  // Handle player leaving lobby
+  socket.on('leave_lobby', () => {
+    // Remove player from lobby
+    const playerIndex = lobbyState.players.findIndex(p => p.id === socket.id);
+    if (playerIndex !== -1) {
+      lobbyState.players.splice(playerIndex, 1);
+      
+      // Send updated lobby state to all clients
+      io.emit('lobby_update', { lobby: lobbyState });
+    }
+  });
+  
+  // Handle player ready state toggle
+  socket.on('player_ready', (data) => {
+    // Update player ready state in lobby
+    const playerIndex = lobbyState.players.findIndex(p => p.id === socket.id);
+    if (playerIndex !== -1) {
+      lobbyState.players[playerIndex].isReady = data.isReady;
+      
+      // Send updated lobby state to all clients
+      io.emit('lobby_update', { lobby: lobbyState });
+      
+      // Check if all players are ready to start the game
+      checkGameStart();
+    }
+  });
+  
+  // Handle direct game start request (from countdown timer)
+  socket.on('start_game', () => {
+    console.log(`Player ${socket.id} requested to start the game directly`);
+    
+    // Make sure we have at least 2 players
+    if (lobbyState.players.length < 2) {
+      socket.emit('error', { message: 'Need at least 2 players to start the game' });
+      return;
+    }
+    
+    // Start the game immediately
+    startGame();
+  });
+});
+
+// Start game function
+function startGame() {
+  // Set game in progress
+  gameState.gameInProgress = true;
+  lobbyState.gameInProgress = true;
+  
+  // Reset player positions and stats
+  Object.values(gameState.players).forEach((player, index) => {
+    // Place players in different corners based on their index
+    switch (index % 4) {
+      case 0: // Top left
+        player.x = 1;
+        player.y = 1;
+        break;
+      case 1: // Top right
+        player.x = 13;
+        player.y = 1;
+        break;
+      case 2: // Bottom left
+        player.x = 1;
+        player.y = 13;
+        break;
+      case 3: // Bottom right
+        player.x = 13;
+        player.y = 13;
+        break;
+    }
+    
+    player.lives = 3;
+    player.isAlive = true;
+    player.score = 0;
+  });
+  
+  // Clear bombs and powerups
+  gameState.bombs = {};
+  gameState.powerups = {};
+  
+  // Generate random powerups
+  for (let i = 0; i < 10; i++) {
+    const powerupId = `powerup_${Date.now()}_${i}`;
+    const powerupTypes = ['bombCapacity', 'explosionRange', 'speed', 'extraLife'];
+    const randomType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+    
+    gameState.powerups[powerupId] = {
+      id: powerupId,
+      type: randomType,
+      x: Math.floor(Math.random() * 10) + 3, // Avoid spawning in corners
+      y: Math.floor(Math.random() * 10) + 3  // Avoid spawning in corners
+    };
+  }
+  
+  // Generate a random map seed for consistent map generation across clients
+  const mapSeed = Math.floor(Math.random() * 1000000);
+  
+  // Broadcast game started event
+  io.emit('game:started', {
+    players: Object.values(gameState.players),
+    powerups: Object.values(gameState.powerups),
+    mapSeed
+  });
+}
+
+// End game function
+function endGame() {
+  if (!gameState.gameInProgress) return;
+  
+  gameState.gameInProgress = false;
+  
+  // Calculate winner
+  const players = Object.values(gameState.players);
+  players.sort((a, b) => b.score - a.score);
+  
+  const winner = players.length > 0 ? players[0] : null;
+  
+  // Prepare player rankings
+  const rankings = players.map((player, index) => ({
+    id: player.id,
+    nickname: player.nickname,
+    score: player.score,
+    rank: index + 1
+  }));
+  
+  // Broadcast game end
+  io.emit('game:ended', {
+    gameId: 'game1',
+    winner: winner ? {
+      id: winner.id,
+      nickname: winner.nickname,
+      score: winner.score
+    } : undefined,
+    players: rankings,
+    duration: 0 // Calculate actual duration in a real implementation
+  });
+}
+
+// Check if all players are ready to start the game
+function checkGameStart() {
+  // Only start if there are at least 2 players
+  if (lobbyState.players.length < 1) {
+    return;
+  }
+  
+  // Check if all players are ready
+  const allReady = lobbyState.players.every(player => player.isReady);
+  
+  if (allReady) {
+    console.log('All players ready, starting game...');
+    startGame();
+  }
+}
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, '../')));
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Bomberman game server running on port ${PORT}`);
+});

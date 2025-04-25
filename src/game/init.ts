@@ -24,8 +24,28 @@ export function initGame() {
   const app = document.getElementById('app');
   if (!app) return;
   
-  // Initialize the lobby system
-  initLobby(app);
+  // Clear any existing content to prevent old styles from appearing
+  app.innerHTML = '';
+  
+  // Apply base styles to ensure consistent appearance
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+  document.body.style.overflow = 'hidden';
+  document.body.style.width = '100vw';
+  document.body.style.height = '100vh';
+  document.body.style.backgroundColor = '#1a1a1a';
+  
+  // Make container full-page
+  app.style.width = '100vw';
+  app.style.height = '100vh';
+  app.style.position = 'relative';
+  app.style.overflow = 'hidden';
+  app.style.backgroundColor = '#1a1a1a';
+  
+  // Initialize the lobby system with a slight delay to ensure clean rendering
+  setTimeout(() => {
+    initLobby(app);
+  }, 10);
   
   // Create a controls container (will be hidden initially)
   const controlsContainer = document.createElement('div');
@@ -49,6 +69,20 @@ export function initGame() {
     startGame(app);
   });
   
+  // Create an End Game button
+  const endGameButton = document.createElement('button');
+  endGameButton.textContent = 'End Game';
+  endGameButton.style.margin = '10px';
+  endGameButton.style.padding = '8px 16px';
+  endGameButton.style.backgroundColor = '#f44336';
+  endGameButton.style.color = 'white';
+  endGameButton.style.border = 'none';
+  endGameButton.style.borderRadius = '4px';
+  endGameButton.style.cursor = 'pointer';
+  endGameButton.addEventListener('click', () => {
+    endGame();
+  });
+  
   // Create a reset button
   const resetButton = document.createElement('button');
   resetButton.textContent = 'Reset Map';
@@ -63,8 +97,9 @@ export function initGame() {
     resetGame(app);
   });
   
-  // Add buttons to the controls container
+  // Add buttons to controls container
   controlsContainer.appendChild(generateButton);
+  controlsContainer.appendChild(endGameButton);
   controlsContainer.appendChild(resetButton);
   
   // Listen for game start event (will be triggered by the lobby system)
@@ -255,4 +290,39 @@ function resetGame(container: HTMLElement) {
 // Get current map data
 export function getCurrentMapData() {
   return currentMapData;
+}
+
+import { endCurrentGame } from '../main';
+
+// End the current game and return to lobby
+export function endGame() {
+  console.log('Ending game...');
+  
+  // Send end game event to the server
+  endCurrentGame();
+  
+  // Emit end game event to event bus
+  eventBus.emit('game:end', {});
+  
+  // Reset the game state
+  resetGame(document.getElementById('app') as HTMLElement);
+  
+  // Reset player store state
+  playerStore.setState({
+    gameState: 'login',
+    players: [],
+    lobbyData: null
+  });
+  
+  // Show the lobby again
+  const app = document.getElementById('app');
+  if (app) {
+    initLobby(app);
+  }
+  
+  // Hide controls
+  const controlsContainer = document.getElementById('game-controls');
+  if (controlsContainer) {
+    controlsContainer.style.display = 'none';
+  }
 }

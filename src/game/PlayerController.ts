@@ -2,6 +2,7 @@
 import { Player, Direction } from '../entities/player';
 import { eventBus } from '../../framework/events';
 import { BombSystem } from './BombSystem';
+import { EVENTS } from '../multiplayer/events';
 
 interface KeyState {
   up: boolean;
@@ -27,9 +28,35 @@ export class PlayerController {
     // Listen for collision map updates
     eventBus.on('grid:update', this.updateCollisionMap.bind(this));
     
+    // Listen for remote player movements
+    eventBus.on('remote:player:moved', (data) => {
+      this.handleRemotePlayerMove(data);
+    });
+    
+    // Listen for remote bomb placements
+    eventBus.on('remote:bomb:dropped', (data) => {
+      this.handleRemoteBombPlacement(data);
+    });
+    
     // Start the update loop
     this.lastUpdateTime = performance.now();
     this.update();
+  }
+
+  // Handle remote player movement events
+  private handleRemotePlayerMove(data: { playerId: string, x: number, y: number, direction: Direction }): void {
+    const player = this.players.get(data.playerId);
+    if (!player) return;
+    
+    // Update player position directly
+    player.setPosition(data.x, data.y);
+    player.setDirection(data.direction);
+  }
+  
+  // Handle remote bomb placement events
+  private handleRemoteBombPlacement(data: { playerId: string, x: number, y: number, explosionRange: number }): void {
+    // Place bomb at the specified position
+    this.bombSystem.placeBomb(data.playerId, data.x, data.y);
   }
 
   // Add a player to be controlled
@@ -47,6 +74,9 @@ export class PlayerController {
     
     // Initialize player in bomb system
     this.bombSystem.initializePlayer(player.id);
+    
+    // Emit player added event
+    eventBus.emit('player:added', { player });
   }
 
   // Remove a player
@@ -149,23 +179,41 @@ export class PlayerController {
       
       // Move player
       player.move(direction, deltaTime, this.checkCollision.bind(this));
+      
+      // Player movement is now handled via the event bus
+      // The main.ts file will pick up player:moved events and handle multiplayer sync
     });
     
     // Continue the loop
     requestAnimationFrame(this.update.bind(this));
   }
 
-  // Try to place a bomb for a player
+  // Try to place a bomb at the player's position
   private tryPlaceBomb(playerId: string): void {
     const player = this.players.get(playerId);
     if (!player) return;
     
     const position = player.getPosition();
-    const gridX = Math.floor(position.x);
-    const gridY = Math.floor(position.y);
+    const gridX = Math.round(position.x);
+    const gridY = Math.round(position.y);
     
-    // Try to place a bomb at the player's position
-    this.bombSystem.placeBomb(playerId, gridX, gridY);
+    // Get player stats for explosion range
+    const stats = player.getStats();
+    
+    // Try to place the bomb
+    const bombPlaced = this.bombSystem.placeBomb(playerId, gridX, gridY);
+    
+    if (bombPlaced) {
+      console.log(`Player ${playerId} placed a bomb at (${gridX}, ${gridY})`);
+      
+      // Emit bomb placed event for main.ts to handle multiplayer sync
+      eventBus.emit('bomb:placed', {
+        playerId,
+        x: gridX,
+        y: gridY,
+        range: stats.explosionRange
+      });
+    }
   }
 
   // Check for collision at a position
