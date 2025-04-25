@@ -2,7 +2,7 @@
 import { eventBus } from '../../framework/events';
 import { h, render } from '../../framework/dom';
 import { Store } from '../../framework/state';
-import { sendToServer } from '../multiplayer/socket';
+import { sendToServer, isConnectedToServer, getSocket } from '../multiplayer/socket';
 import { EVENTS, LobbyData, PlayerData } from '../multiplayer/events';
 import { getPlayerId } from '../main';
 import { initChatUI } from '../ui/chatUI';
@@ -46,8 +46,9 @@ export function initLobby(container: HTMLElement): void {
       lobbyData: data.lobby
     });
     
-    // Update waiting room if we're in it
-    if (playerStore.getState().gameState === 'waiting') {
+    // Only update the waiting room if we're already in it AND we have players
+    // This prevents the brief flash of the empty waiting room
+    if (playerStore.getState().gameState === 'waiting' && data.lobby.players.length > 0) {
       renderWaitingRoom(container);
     }
   });
@@ -67,9 +68,15 @@ export function initLobby(container: HTMLElement): void {
       gameState: 'playing'
     });
     
+    // Ensure the chat button is visible during the game
+    ensureChatButtonVisible();
+    
     // Emit game start event
     eventBus.emit('game:start', data);
   });
+  
+  // Ensure chat button is visible when needed
+  ensureChatButtonVisible();
   
   // Listen for error messages
   eventBus.on('error', (data: { message: string }) => {
@@ -82,6 +89,17 @@ export function initLobby(container: HTMLElement): void {
 function renderLoginScreen(container: HTMLElement): void {
   // Clear container
   container.innerHTML = '';
+  
+  // Remove any existing chat buttons or containers
+  const existingButton = document.querySelector('.chat-toggle');
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
+  const existingContainer = document.getElementById('chat-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
   
   // Ensure body has full-page styles
   document.body.style.margin = '0';
@@ -225,6 +243,11 @@ function joinGame(nickname: string, container: HTMLElement): void {
   
   // Render waiting room
   renderWaitingRoom(container);
+  
+  // Create and add the chat button directly
+  setTimeout(() => {
+    createChatButton();
+  }, 1000); // Longer delay to ensure everything is loaded
 }
     
 // Check if we need to start a countdown timer
@@ -353,53 +376,41 @@ function renderWaitingRoom(container: HTMLElement): void {
   playerListContainer.appendChild(playerListTitle);
   playerListContainer.appendChild(playerList);
   
-  // Create button container
-  const buttonContainer = document.createElement('div');
-  buttonContainer.style.cssText = `
-    display: flex;
-    gap: 1rem;
-  `;
+  // Initialize chat UI if it doesn't exist
+  const chatContainer = document.getElementById('chat-container');
+  const chatButton = document.querySelector('.chat-toggle');
   
-  // Create chat toggle button
-  const chatButton = document.createElement('button');
-  chatButton.textContent = 'Open Chat';
-  chatButton.style.cssText = `
-    padding: 12px 24px;
-    font-size: 18px;
-    background-color: #2196F3;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  `;
-  
-  // Toggle chat visibility on click
-  chatButton.addEventListener('click', () => {
-    const chatContainer = document.getElementById('chat-container');
-    if (chatContainer) {
-      const isVisible = chatContainer.style.display !== 'none';
-      chatContainer.style.display = isVisible ? 'none' : 'block';
-      chatButton.textContent = isVisible ? 'Open Chat' : 'Close Chat';
-    } else {
-      console.log('Chat container not found, initializing chat UI');
-      // If chat container doesn't exist, initialize it
-      const gameContainer = document.getElementById('app');
-      if (gameContainer) {
-        // Initialize chat UI directly
-        initChatUI(gameContainer);
-        chatButton.textContent = 'Close Chat';
+  if (!chatContainer || !chatButton) {
+    console.log('Chat UI not found, initializing chat UI');
+    const gameContainer = document.getElementById('app');
+    if (gameContainer) {
+      // Initialize chat UI directly with the top-right button only
+      initChatUI(gameContainer);
+      
+      // Make sure the chat button is visible
+      const newChatButton = document.querySelector('.chat-toggle');
+      if (newChatButton instanceof HTMLElement) {
+        newChatButton.style.display = 'block';
+        newChatButton.style.zIndex = '9999';
+        newChatButton.style.position = 'fixed';
+        newChatButton.style.top = '10px';
+        newChatButton.style.right = '10px';
       }
     }
-  });
-  
-  buttonContainer.appendChild(chatButton);
+  } else if (chatButton instanceof HTMLElement) {
+    // Ensure the chat button is visible
+    chatButton.style.display = 'block';
+    chatButton.style.zIndex = '9999';
+    chatButton.style.position = 'fixed';
+    chatButton.style.top = '10px';
+    chatButton.style.right = '10px';
+  }
   
   // Add elements to container
   waitingRoomContainer.appendChild(title);
   waitingRoomContainer.appendChild(playerCount);
   waitingRoomContainer.appendChild(timerElement);
   waitingRoomContainer.appendChild(playerListContainer);
-  waitingRoomContainer.appendChild(buttonContainer);
   
   // Add waiting room to container
   container.appendChild(waitingRoomContainer);
@@ -545,6 +556,386 @@ function updateWaitingRoom(): void {
       renderWaitingRoom(appContainer);
     }
   }
+}
+
+// Create a complete chat system directly in the lobby
+function createChatButton(): void {
+  // Remove any existing chat buttons and containers to prevent duplicates
+  const existingButton = document.querySelector('.chat-toggle');
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
+  const existingContainer = document.getElementById('chat-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
+  
+  // Global message tracking to prevent duplicates
+  // Using a module-level variable for message tracking
+  // This will persist across the application lifetime
+  const globalMessageTracker = (() => {
+    // Singleton pattern to ensure only one instance exists
+    let instance: Set<string> | null = null;
+    
+    return {
+      getInstance: () => {
+        if (!instance) {
+          instance = new Set<string>();
+        }
+        return instance;
+      }
+    };
+  })();
+  
+  // Simple message tracking to prevent duplicates
+  const processedMessages = new Set<string>();
+  
+  // Remove any existing chat event listeners
+  const socket = getSocket();
+  if (socket) {
+    // Remove socket listeners
+    socket.off('chat');
+    
+    // Set up a direct socket listener for chat messages
+    socket.on('chat', (data) => {
+      console.log('CHAT MESSAGE RECEIVED:', data);
+      
+      // IMPORTANT: Skip ALL messages with nickname "You" - these are echoes from the server
+      if (data.nickname === 'You') {
+        console.log('Skipping message with nickname "You"');
+        return;
+      }
+      
+      // Skip our own messages (we already show them locally)
+      const currentPlayerId = getPlayerId();
+      if (data.playerId === currentPlayerId) {
+        console.log('Skipping own message with ID:', data.playerId);
+        return;
+      }
+      
+      // Simple message ID
+      const messageId = `${data.playerId}-${data.timestamp}`;
+      
+      // Skip if already processed
+      if (processedMessages.has(messageId)) {
+        console.log('Skipping already processed message:', messageId);
+        return;
+      }
+      
+      // Mark as processed
+      processedMessages.add(messageId);
+      console.log('Displaying message from', data.nickname);
+      
+      // Display the message
+      const messagesContainer = document.querySelector('.chat-messages');
+      if (messagesContainer instanceof HTMLElement) {
+        addChatMessage(data.nickname, data.message, messagesContainer, true);
+      }
+    });
+  }
+  
+  // Create chat container
+  const chatContainer = document.createElement('div');
+  chatContainer.id = 'chat-container';
+  chatContainer.className = 'chat-container';
+  chatContainer.style.cssText = `
+    position: fixed !important;
+    bottom: 80px !important;
+    right: 20px !important;
+    width: 320px !important;
+    height: 350px !important;
+    background-color: rgba(0, 0, 0, 0.85) !important;
+    border-radius: 8px !important;
+    color: white !important;
+    display: flex !important;
+    flex-direction: column !important;
+    z-index: 1000 !important;
+    transition: all 0.3s ease !important;
+    display: none !important;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    font-family: 'Arial', sans-serif !important;
+  `;
+  
+  // Create chat header
+  const chatHeader = document.createElement('div');
+  chatHeader.className = 'chat-header';
+  chatHeader.style.cssText = `
+    padding: 10px 15px !important;
+    background-color: rgba(0, 0, 0, 0.7) !important;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+    cursor: move !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    user-select: none !important;
+  `;
+  
+  // Create chat title
+  const chatTitle = document.createElement('span');
+  chatTitle.textContent = 'Game Chat';
+  chatTitle.style.cssText = `
+    font-weight: bold !important;
+    font-size: 16px !important;
+    color: #4CAF50 !important;
+  `;
+  
+  // Create minimize button
+  const minimizeButton = document.createElement('button');
+  minimizeButton.textContent = '−';
+  minimizeButton.style.cssText = `
+    background: none !important;
+    border: none !important;
+    color: white !important;
+    cursor: pointer !important;
+    font-size: 18px !important;
+    padding: 0 5px !important;
+    transition: color 0.2s !important;
+  `;
+  
+  // Add title and minimize button to header
+  chatHeader.appendChild(chatTitle);
+  chatHeader.appendChild(minimizeButton);
+  
+  // Create messages container
+  const messagesContainer = document.createElement('div');
+  messagesContainer.className = 'chat-messages';
+  messagesContainer.style.cssText = `
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 15px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent !important;
+  `;
+  
+  // Create input container
+  const inputContainer = document.createElement('div');
+  inputContainer.className = 'chat-input-container';
+  inputContainer.style.cssText = `
+    display: flex !important;
+    padding: 12px !important;
+    background-color: rgba(0, 0, 0, 0.6) !important;
+    border-bottom-left-radius: 8px !important;
+    border-bottom-right-radius: 8px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  `;
+  
+  // Create chat input
+  const chatInput = document.createElement('input');
+  chatInput.type = 'text';
+  chatInput.placeholder = 'Type a message...';
+  chatInput.style.cssText = `
+    flex: 1 !important;
+    padding: 8px 12px !important;
+    border-radius: 4px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 14px !important;
+    transition: border-color 0.3s !important;
+    outline: none !important;
+  `;
+  
+  // Create send button
+  const sendButton = document.createElement('button');
+  sendButton.textContent = 'Send';
+  sendButton.style.cssText = `
+    margin-left: 8px !important;
+    padding: 8px 15px !important;
+    border: none !important;
+    border-radius: 4px !important;
+    background-color: #4CAF50 !important;
+    color: white !important;
+    cursor: pointer !important;
+    font-weight: bold !important;
+    transition: background-color 0.3s, transform 0.2s !important;
+  `;
+  
+  // Add input and button to input container
+  inputContainer.appendChild(chatInput);
+  inputContainer.appendChild(sendButton);
+  
+  // Assemble chat container
+  chatContainer.appendChild(chatHeader);
+  chatContainer.appendChild(messagesContainer);
+  chatContainer.appendChild(inputContainer);
+  
+  // Add chat container to DOM
+  document.body.appendChild(chatContainer);
+  
+  // Create a new button
+  const chatButton = document.createElement('button');
+  chatButton.className = 'chat-toggle';
+  chatButton.id = 'chat-toggle-button';
+  chatButton.textContent = 'Chat';
+  chatButton.style.cssText = `
+    position: fixed !important;
+    top: 10px !important;
+    right: 10px !important;
+    padding: 8px 15px !important;
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-weight: bold !important;
+    z-index: 9999 !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+    transition: background-color 0.3s !important;
+    display: block !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
+  `;
+  
+  // Add event listeners for chat button
+  chatButton.addEventListener('click', () => {
+    // Toggle chat visibility
+    if (chatContainer.style.display === 'none' || !chatContainer.style.display) {
+      chatContainer.style.display = 'flex';
+      chatButton.textContent = 'Hide Chat';
+      // Focus input when chat is opened
+      chatInput.focus();
+    } else {
+      chatContainer.style.display = 'none';
+      chatButton.textContent = 'Chat';
+    }
+  });
+  
+  // Add event listener for send button
+  sendButton.addEventListener('click', () => {
+    sendChatMessage(chatInput.value, messagesContainer);
+    chatInput.value = '';
+  });
+  
+  // Add event listener for enter key in input
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      sendChatMessage(chatInput.value, messagesContainer);
+      chatInput.value = '';
+    }
+  });
+  
+  // Add to the DOM
+  document.body.appendChild(chatButton);
+  console.log('Chat system created and added to DOM');
+  
+  // Add a welcome message
+  addChatMessage('System', 'Welcome to Bomberman Chat! 💬', messagesContainer);
+}
+
+// Ensure the chat button is visible
+function ensureChatButtonVisible(): void {
+  const chatButton = document.querySelector('.chat-toggle');
+  if (chatButton instanceof HTMLElement) {
+    // Make sure the chat button stays visible
+    chatButton.style.display = 'block';
+    chatButton.style.zIndex = '9999';
+    chatButton.style.position = 'fixed';
+    chatButton.style.top = '10px';
+    chatButton.style.right = '10px';
+    console.log('Chat button visibility enforced in lobby');
+  } else {
+    console.error('Chat button not found in DOM from lobby');
+    // Create a new button directly
+    createChatButton();
+  }
+}
+
+// Global set to track sent message IDs
+const sentMessageIds = new Set<string>();
+
+// Module-level flag to track if chat listeners are initialized
+// This prevents multiple registrations of event listeners
+let chatListenersInitialized = false;
+
+// Send a chat message
+function sendChatMessage(message: string, messagesContainer: HTMLElement): void {
+  if (!message.trim()) return;
+  
+  // Get player nickname and ID from store
+  const currentPlayer = playerStore.getState().currentPlayer;
+  const nickname = currentPlayer?.nickname || 'You';
+  const playerId = getPlayerId() || 'local';
+  
+  // Create chat message data
+  const chatData = {
+    playerId,
+    nickname,
+    message: message.trim(),
+    timestamp: Date.now()
+  };
+  
+  // Get the socket directly
+  const socket = getSocket();
+  if (socket && socket.connected) {
+    // Send message directly via socket
+    socket.emit('chat', chatData);
+    console.log('Chat message sent to server:', chatData);
+  } else {
+    // Fallback to sendToServer which will queue the message
+    sendToServer(EVENTS.CHAT, chatData);
+    console.log('Chat message queued (socket not connected)');
+  }
+  
+  // Add message to local chat for immediate feedback
+  addChatMessage(nickname, message.trim(), messagesContainer);
+}
+
+// Add a chat message to the UI
+function addChatMessage(sender: string, message: string, messagesContainer: HTMLElement, forceRemote: boolean = false): void {
+  // Create message element
+  const messageElement = document.createElement('div');
+  messageElement.className = 'chat-message';
+  
+  // Check message type
+  const isSystem = sender === 'System';
+  
+  // Determine if this is a local message
+  let isLocalUser = false;
+  
+  if (forceRemote) {
+    // This is explicitly marked as a remote message
+    isLocalUser = false;
+  } else {
+    // For messages we're sending locally
+    isLocalUser = true;
+  }
+  
+  messageElement.style.cssText = `
+    background-color: ${isSystem ? 'rgba(255, 204, 0, 0.2)' : isLocalUser ? 'rgba(76, 175, 80, 0.2)' : 'rgba(100, 181, 246, 0.2)'};
+    padding: 8px 12px;
+    border-radius: 6px;
+    word-break: break-word;
+    max-width: 85%;
+    align-self: ${isLocalUser ? 'flex-end' : 'flex-start'};
+    margin-left: ${isLocalUser ? 'auto' : '0'};
+    margin-right: ${isLocalUser ? '0' : 'auto'};
+    position: relative;
+    animation: fadeIn 0.3s ease;
+  `;
+  
+  // Format timestamp
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  // Create message content with text alignment based on sender
+  messageElement.innerHTML = `
+    <div style="font-weight: bold; color: ${isSystem ? '#ffcc00' : isLocalUser ? '#4CAF50' : '#64B5F6'}; margin-bottom: 3px; text-align: ${isLocalUser ? 'right' : 'left'};">
+      ${sender}
+      <span style="color: #aaa; font-size: 0.8em; margin-left: 5px; font-weight: normal;">${timestamp}</span>
+    </div>
+    <div style="color: #fff; text-align: ${isLocalUser ? 'right' : 'left'};">${message}</div>
+  `;
+  
+  // Add message to container
+  messagesContainer.appendChild(messageElement);
+  
+  // Scroll to bottom
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 // Show error message

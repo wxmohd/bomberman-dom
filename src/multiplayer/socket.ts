@@ -43,6 +43,10 @@ export function connectToServer(nickname: string): Promise<void> {
       // Emit join event with player nickname
       if (socket) {
         socket.emit(EVENTS.JOIN, { nickname });
+        
+        // Immediately join lobby after connection
+        socket.emit(EVENTS.JOIN_LOBBY, {});
+        console.log('Instantly joining lobby after connection');
       }
       
       // Notify the application about the connection
@@ -89,6 +93,9 @@ export function isConnectedToServer(): boolean {
   return isConnected && socket?.connected === true;
 }
 
+// Queue for messages that couldn't be sent due to connection issues
+const messageQueue: {event: string, data: any}[] = [];
+
 /**
  * Send an event to the server
  * @param event Event name
@@ -96,11 +103,43 @@ export function isConnectedToServer(): boolean {
  */
 export function sendToServer(event: string, data: any): void {
   if (!socket || !socket.connected) {
-    console.error(`Cannot send event, not connected to server: ${event}`);
+    console.log(`Queueing event for later, not connected to server: ${event}`);
+    // Add to queue to send when connection is established
+    messageQueue.push({event, data});
+    
+    // Make sure we have a listener for when connection is established
+    if (socket) {
+      socket.once('connect', () => {
+        // Process queued messages
+        processMessageQueue();
+      });
+    }
     return;
   }
   
+  // If connected, send immediately
   socket.emit(event, data);
+}
+
+/**
+ * Process any queued messages that couldn't be sent due to connection issues
+ */
+function processMessageQueue(): void {
+  console.log(`Processing ${messageQueue.length} queued messages`);
+  
+  if (!socket || !socket.connected) {
+    console.error('Cannot process message queue, still not connected');
+    return;
+  }
+  
+  // Send all queued messages
+  while (messageQueue.length > 0) {
+    const message = messageQueue.shift();
+    if (message) {
+      console.log(`Sending queued message: ${message.event}`);
+      socket.emit(message.event, message.data);
+    }
+  }
 }
 
 /**
@@ -131,6 +170,13 @@ function setupGameEventListeners(): void {
 
   // Chat message received
   socket.on(EVENTS.CHAT, (data) => {
+    console.log('Socket received chat message:', data);
+    eventBus.emit('chat:message:received', data);
+  });
+  
+  // Also listen for the raw 'chat' event as a fallback
+  socket.on('chat', (data) => {
+    console.log('Socket received raw chat event:', data);
     eventBus.emit('chat:message:received', data);
   });
 

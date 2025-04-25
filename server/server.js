@@ -148,6 +148,40 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Handle chat messages
+  socket.on('chat', (data) => {
+    console.log(`Chat message from ${data.nickname}: ${data.message}`);
+    
+    // Create the message data with the server's timestamp if not provided
+    const chatMessage = {
+      playerId: socket.id,
+      nickname: data.nickname,
+      message: data.message,
+      timestamp: data.timestamp || Date.now()
+    };
+    
+    console.log('Broadcasting chat message to all clients:', chatMessage);
+    
+    // Broadcast the message to all clients (including sender)
+    io.emit('chat', chatMessage);
+  });
+  
+  // Also handle messages sent with the EVENTS.CHAT event name
+  socket.on('CHAT', (data) => {
+    console.log(`CHAT event message from ${data.nickname}: ${data.message}`);
+    
+    // Create the message data
+    const chatMessage = {
+      playerId: socket.id,
+      nickname: data.nickname,
+      message: data.message,
+      timestamp: data.timestamp || Date.now()
+    };
+    
+    // Broadcast the message to all clients using both event names to ensure delivery
+    io.emit('chat', chatMessage);
+  });
+  
   // Handle player movement
   socket.on('move', (data) => {
     if (!gameState.players[socket.id]) return;

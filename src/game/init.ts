@@ -42,10 +42,8 @@ export function initGame() {
   app.style.overflow = 'hidden';
   app.style.backgroundColor = '#1a1a1a';
   
-  // Initialize the lobby system with a slight delay to ensure clean rendering
-  setTimeout(() => {
-    initLobby(app);
-  }, 10);
+  // Skip the old lobby initialization - we'll handle this in main.ts directly
+  // This prevents the brief flash of the old lobby
   
   // Create a controls container (will be hidden initially)
   const controlsContainer = document.createElement('div');

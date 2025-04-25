@@ -6,6 +6,7 @@ import { initChatUI } from './ui/chatUI';
 import { eventBus } from '../framework/events';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
+import { initLobby } from './game/lobby';
 
 // Connection state
 let isConnected = false;
@@ -17,18 +18,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const app = document.getElementById('app');
   if (app) {
     app.innerHTML = '';
-  }
-  
-  // Initialize the game with a slight delay to ensure clean start
-  setTimeout(() => {
+    
+    // Apply base styles immediately
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden';
+    document.body.style.width = '100vw';
+    document.body.style.height = '100vh';
+    document.body.style.backgroundColor = '#1a1a1a';
+    
+    // Make container full-page
+    app.style.width = '100vw';
+    app.style.height = '100vh';
+    app.style.position = 'relative';
+    app.style.overflow = 'hidden';
+    app.style.backgroundColor = '#1a1a1a';
+    
+    // Initialize the game immediately (skipping the old lobby)
     initGame();
     
-    // Listen for player login to initialize multiplayer
-    eventBus.on('player:login', (data: { nickname: string }) => {
-      // Initialize multiplayer when player logs in
-      initializeMultiplayer(data.nickname);
-    });
-  }, 50);
+    // Initialize the lobby directly from here
+    // This ensures only one lobby is shown
+    initLobby(app);
+    
+    // Remove any existing chat buttons that might be showing
+    const existingButton = document.querySelector('.chat-toggle');
+    if (existingButton) {
+      existingButton.remove();
+    }
+    
+    // Chat UI will be initialized after player enters nickname
+  }
+  
+  // Listen for player login to initialize multiplayer
+  eventBus.on('player:login', (data: { nickname: string }) => {
+    // Initialize multiplayer when player logs in
+    initializeMultiplayer(data.nickname);
+  });
 });
 
 // Initialize multiplayer components
@@ -51,27 +77,23 @@ async function initializeMultiplayer(nickname: string) {
     // Initialize chat with player nickname
     initChat(nickname);
     
-    // Initialize chat UI
+    // Initialize chat UI but keep the button hidden until player joins the lobby
     const gameContainer = document.getElementById('app');
     if (gameContainer) {
+      // Initialize chat UI (button will be hidden by default)
       initChatUI(gameContainer);
+      
+      // Note: We don't make the button visible here anymore
+      // The button will be shown in the lobby.ts file after the player joins
+      console.log('Chat UI initialized, button will be shown after joining lobby');
     }
     
     // Add system message
     addSystemMessage(`Connected to game server as ${nickname}`);
     
-    // Only join the lobby if we're connected
-    if (socket && socket.connected) {
-      console.log('Joining lobby...');
-      sendToServer(EVENTS.JOIN_LOBBY, {});
-    } else {
-      console.log('Socket not connected yet, will join lobby when connected');
-      // Set up a one-time connect event handler to join lobby when connected
-      socket?.once('connect', () => {
-        console.log('Socket connected, now joining lobby');
-        sendToServer(EVENTS.JOIN_LOBBY, {});
-      });
-    }
+    // The JOIN_LOBBY event is now sent automatically in the socket.ts file
+    // immediately after connection for instant lobby joining
+    console.log('Lobby join will happen automatically on connection');
     
     console.log('Multiplayer initialized successfully');
   } catch (error) {

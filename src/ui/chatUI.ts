@@ -14,9 +14,18 @@ let chatToggleButton: HTMLElement | null = null;
 // Chat UI state
 let isChatVisible = false;
 let isMinimized = false;
+let isInitialized = false;
 
 // Initialize chat UI
 export function initChatUI(parentContainer: HTMLElement): void {
+  // Prevent multiple initializations
+  if (isInitialized || document.getElementById('chat-container')) {
+    console.log('Chat UI already initialized, skipping');
+    return;
+  }
+  
+  // Mark as initialized
+  isInitialized = true;
   // Initialize chat logic with player nickname
   // This should be called after player has set their nickname
   const playerNickname = localStorage.getItem('playerNickname') || 'Player';
@@ -24,6 +33,7 @@ export function initChatUI(parentContainer: HTMLElement): void {
   
   // Create chat container
   chatContainer = document.createElement('div');
+  chatContainer.id = 'chat-container';
   chatContainer.className = 'chat-container';
   chatContainer.style.cssText = `
     position: fixed;
@@ -197,24 +207,34 @@ export function initChatUI(parentContainer: HTMLElement): void {
   inputContainer.appendChild(chatInput);
   inputContainer.appendChild(sendButton);
   
-  // Create chat toggle button
+  // Create chat toggle button (always visible)
+  // First, remove any existing chat buttons to prevent duplicates
+  const existingButton = document.querySelector('.chat-toggle');
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
   chatToggleButton = document.createElement('button');
   chatToggleButton.className = 'chat-toggle';
+  chatToggleButton.id = 'chat-toggle-button'; // Add an ID for easier selection
   chatToggleButton.textContent = 'Chat';
   chatToggleButton.style.cssText = `
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    padding: 8px 16px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    z-index: 999;
-    font-weight: bold;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-    transition: background-color 0.3s, transform 0.2s;
+    position: fixed !important;
+    top: 10px !important;
+    right: 10px !important;
+    padding: 8px 15px !important;
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-weight: bold !important;
+    z-index: 9999 !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+    transition: background-color 0.3s !important;
+    display: none !important; /* Hidden by default, will be shown after joining lobby */
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
   `;
   
   // Add event listeners with null checks
