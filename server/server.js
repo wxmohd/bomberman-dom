@@ -106,6 +106,22 @@ io.on('connection', (socket) => {
       nickname,
       timestamp: Date.now()
     });
+    
+    // Check if we have 4 players - if so, start the countdown automatically
+    if (lobbyState.players.length === 4) {
+      console.log('4 players have joined! Starting game countdown automatically...');
+      
+      // Set all players as ready
+      lobbyState.players.forEach(player => {
+        player.isReady = true;
+      });
+      
+      // Send updated lobby state to all clients
+      io.emit('lobby_update', { lobby: lobbyState });
+      
+      // Start the countdown
+      startGameCountdown();
+    }
   });
   
   // Handle player ready status change
@@ -474,18 +490,49 @@ function endGame() {
 
 // Check if all players are ready to start the game
 function checkGameStart() {
-  // Only start if there are at least 2 players
-  if (lobbyState.players.length < 1) {
-    return;
-  }
+  if (gameState.gameInProgress || lobbyState.players.length < 2) return;
   
   // Check if all players are ready
-  const allReady = lobbyState.players.every(player => player.isReady);
+  const allReady = lobbyState.players.length > 0 && lobbyState.players.every(p => p.isReady);
   
   if (allReady) {
-    console.log('All players ready, starting game...');
-    startGame();
+    console.log('All players ready, starting game countdown...');
+    startGameCountdown();
   }
+}
+
+// Game countdown timer variable
+let gameCountdownTimer = null;
+
+// Start the game countdown (10 seconds)
+function startGameCountdown() {
+  // Clear any existing countdown
+  if (gameCountdownTimer) {
+    clearInterval(gameCountdownTimer);
+  }
+  
+  // Set the countdown duration (10 seconds)
+  let countdown = 10;
+  
+  // Broadcast initial countdown message
+  io.emit('game:countdown', { seconds: countdown });
+  console.log(`Game starting in ${countdown} seconds...`);
+  
+  // Start the countdown timer
+  gameCountdownTimer = setInterval(() => {
+    countdown--;
+    
+    // Broadcast countdown update
+    io.emit('game:countdown', { seconds: countdown });
+    console.log(`Game starting in ${countdown} seconds...`);
+    
+    // When countdown reaches 0, start the game
+    if (countdown <= 0) {
+      clearInterval(gameCountdownTimer);
+      gameCountdownTimer = null;
+      startGame();
+    }
+  }, 1000);
 }
 
 // Serve static files from the public directory

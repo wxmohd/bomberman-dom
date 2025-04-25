@@ -28,6 +28,98 @@ const PLAYER_COLORS = [
 let lobbyTimerInterval: number | null = null;
 let countdownTimerInterval: number | null = null;
 
+// Store the current countdown value globally
+let currentCountdown: number | null = null;
+
+// Set up the game countdown event listener
+eventBus.on('game:countdown', (data: { seconds: number }) => {
+  console.log('Game countdown update received:', data);
+  
+  // Store the current countdown value
+  currentCountdown = data.seconds;
+  
+  // Update all countdown elements on the page
+  updateAllCountdownElements();
+});
+
+// Function to update all countdown elements with the current value
+function updateAllCountdownElements() {
+  if (currentCountdown === null) return;
+  
+  // Find all countdown elements
+  const countdownElements = document.querySelectorAll('.game-countdown, #game-countdown');
+  
+  // If no elements found and we have a countdown, create a global floating one
+  if (countdownElements.length === 0 && currentCountdown !== null) {
+    createGlobalCountdownElement();
+    return;
+  }
+  
+  // Update all found elements
+  countdownElements.forEach(element => {
+    if (element instanceof HTMLElement) {
+      updateCountdownElement(element);
+    }
+  });
+}
+
+// Function to create a global floating countdown element
+function createGlobalCountdownElement() {
+  // Create a floating countdown element
+  const floatingCountdown = document.createElement('div');
+  floatingCountdown.id = 'floating-countdown';
+  floatingCountdown.className = 'game-countdown';
+  floatingCountdown.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #FF5252;
+    z-index: 9999;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    margin: 0 auto;
+    width: fit-content;
+  `;
+  
+  // Add to the document
+  document.body.appendChild(floatingCountdown);
+  
+  // Update the element
+  updateCountdownElement(floatingCountdown);
+}
+
+// Function to update a single countdown element
+function updateCountdownElement(element: HTMLElement) {
+  if (currentCountdown === null) return;
+  
+  // Update the countdown text
+  element.textContent = `Game starts in ${currentCountdown} seconds if no more players join`;
+  element.style.color = '#FF5252';
+  element.style.fontWeight = 'bold';
+  
+  // Make it more visible with a pulsing animation
+  element.style.animation = 'pulse 1s infinite';
+  
+  // Add the CSS animation if it doesn't exist
+  if (!document.getElementById('countdown-animation')) {
+    const style = document.createElement('style');
+    style.id = 'countdown-animation';
+    style.textContent = `
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 // Initialize the lobby
 export function initLobby(container: HTMLElement): void {
   // Render the login screen
@@ -296,13 +388,23 @@ function renderWaitingRoom(container: HTMLElement): void {
     color: #FFC107;
   `;
   
-  // Create countdown timer if enough players
+  // Create countdown timer element
   const timerElement = document.createElement('h2');
+  timerElement.id = 'game-countdown';
+  timerElement.className = 'game-countdown'; // Add the class for consistent updates
   timerElement.style.cssText = `
-    font-size: 1.5rem;
+    font-size: 2rem;
     margin-bottom: 2rem;
     color: #FF5252;
+    text-align: center;
   `;
+  
+  // Set initial text or use current countdown if available
+  if (currentCountdown !== null) {
+    timerElement.textContent = `Game starts in ${currentCountdown} seconds if no more players join`;
+  } else {
+    timerElement.textContent = 'Waiting for players...';
+  }
   
   // Create player list container
   const playerListContainer = document.createElement('div');

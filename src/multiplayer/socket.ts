@@ -185,6 +185,12 @@ function setupGameEventListeners(): void {
     eventBus.emit('game:state:updated', data);
   });
 
+  // Game countdown
+  socket.on('game:countdown', (data) => {
+    console.log('Countdown received:', data);
+    eventBus.emit('game:countdown', data);
+  });
+
   // Game started
   socket.on('game:started', (data) => {
     eventBus.emit('game:started', data);
