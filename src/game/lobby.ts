@@ -517,8 +517,59 @@ function renderWaitingRoom(container: HTMLElement): void {
   // Add waiting room to container
   container.appendChild(waitingRoomContainer);
   
-  // Check if we should start a timer
-  if (players.length >= 2 && players.length < 4) {
+  // Check if we should start a timer or show start button
+  if (players.length === 1) {
+    // Clear any existing timer
+    if (lobbyTimerInterval) {
+      clearInterval(lobbyTimerInterval);
+      lobbyTimerInterval = null;
+    }
+    
+    // Create start button for single player
+    const startButton = document.createElement('button');
+    startButton.textContent = 'Start Game';
+    startButton.className = 'start-game-button';
+    startButton.style.cssText = `
+      padding: 1rem 2rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: background-color 0.3s ease;
+    `;
+    
+    // Add hover effect
+    startButton.addEventListener('mouseover', () => {
+      startButton.style.backgroundColor = '#45a049';
+    });
+    
+    startButton.addEventListener('mouseout', () => {
+      startButton.style.backgroundColor = '#4CAF50';
+    });
+    
+    // Add click event to start the game
+    startButton.addEventListener('click', () => {
+      // Disable button to prevent multiple clicks
+      startButton.disabled = true;
+      startButton.textContent = 'Starting...';
+      startButton.style.backgroundColor = '#999';
+      
+      // Send start game event to server with singlePlayer flag
+      sendToServer(EVENTS.START_GAME, { singlePlayer: true });
+      
+      // Show starting message
+      timerElement.textContent = 'Starting single-player game...';
+    });
+    
+    // Add button to container
+    waitingRoomContainer.appendChild(startButton);
+    
+    timerElement.textContent = 'You can start the game now!';
+  } else if (players.length >= 2 && players.length < 4) {
     // Start a 20 second timer
     startLobbyTimer(20, timerElement);
   } else if (players.length === 4) {
