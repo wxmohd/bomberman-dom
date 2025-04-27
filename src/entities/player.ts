@@ -3,6 +3,7 @@ import { eventBus } from '../../framework/events';
 import { TILE_SIZE } from '../game/constants';
 import { EVENTS } from '../multiplayer/events';
 import { sendToServer } from '../multiplayer/socket';
+import { maybeSpawnPowerup, PowerUpType, checkAndCollectPowerUp } from '../game/powerups';
 
 export enum Direction {
   UP,
@@ -78,8 +79,11 @@ export class Player {
       this.createPlayerElement(container);
     }
     
-    // Listen for power-up events
+    // Listen for power-up collection events
     eventBus.on('powerup:applied', this.handlePowerUp.bind(this));
+    
+    // Listen for stat update events
+    eventBus.on('stat:updated', this.handleStatUpdate.bind(this));
     
     // Listen for hit events
     eventBus.on('player:hit', this.handleHit.bind(this));
@@ -341,6 +345,12 @@ export class Player {
         this.updateVisualPosition();
         this.emitPositionUpdate();
         console.log(`Moved to (${this.x},${this.y})`);
+        
+        // Only check for power-ups if we're the local player to avoid duplicate collection
+        if (this.isLocalPlayer()) {
+          // Instead of automatically collecting, check if there's a visible power-up and collect it manually
+          this.checkForVisiblePowerUp();
+        }
       } else {
         console.log(`Invalid position: (${newX},${newY})`);
       }
@@ -429,24 +439,204 @@ export class Player {
     });
   }
   
-  // Handle power-up application
+  // Handle power-up application (from actual power-up collection)
   private handlePowerUp(data: any): void {
     // Only process if this is for this player
     if (data.playerId !== this.id) return;
     
+    // We now only accept power-ups that have a visual verification
+    if (!data.source || data.source !== 'visual_verification') {
+      console.log(`Ignoring power-up event without visual verification:`, data);
+      return;
+    }
+    
+    console.log(`Applying power-up to player ${this.id}:`, data);
+    
     switch (data.type) {
-      case 'bombCapacity':
-        this.bombCapacity = data.value;
+      case PowerUpType.BOMB:
+        this.bombCapacity += 1;
+        console.log(`Increased bomb capacity to ${this.bombCapacity}`);
         break;
-      case 'explosionRange':
-        this.explosionRange = data.value;
+      case PowerUpType.FLAME:
+        this.explosionRange += 1;
+        console.log(`Increased explosion range to ${this.explosionRange}`);
         break;
-      case 'speed':
-        this.speed = data.value;
+      case PowerUpType.SPEED:
+        this.speed += 0.5;
+        console.log(`Increased speed to ${this.speed}`);
         break;
       case 'extraLife':
         this.lives += 1;
+        console.log(`Increased lives to ${this.lives}`);
         break;
+      default:
+        console.log(`Unknown power-up type: ${data.type}`);
+    }
+    
+    // Emit stats update event
+    this.emitStatsUpdate();
+  }
+  
+  // Check for visible power-ups at the player's position
+  private checkForVisiblePowerUp(): void {
+    // Get the player's current grid position
+    const gridX = Math.floor(this.x);
+    const gridY = Math.floor(this.y);
+    
+    console.log(`Checking for power-ups at position (${gridX}, ${gridY})`);
+    
+    // Get all power-up elements from the DOM (using the correct class name)
+    const powerUpElements = document.querySelectorAll('.powerup');
+    console.log(`Found ${powerUpElements.length} power-up elements in the DOM`);
+    
+    // If no power-up elements exist, exit early
+    if (powerUpElements.length === 0) {
+      return;
+    }
+    
+    // Check each power-up element to see if it's at our position
+    let foundPowerUp = false;
+    powerUpElements.forEach((el, index) => {
+      const powerUpEl = el as HTMLElement;
+      const style = window.getComputedStyle(powerUpEl);
+      
+      // Get the power-up's position
+      const leftPx = parseInt(style.left);
+      const topPx = parseInt(style.top);
+      const left = leftPx / TILE_SIZE;
+      const top = topPx / TILE_SIZE;
+      
+      console.log(`Power-up #${index}: position (${left.toFixed(2)}, ${top.toFixed(2)}) [${leftPx}px, ${topPx}px], class=${powerUpEl.className}, data-type=${powerUpEl.getAttribute('data-type')}`);
+      
+      // If the power-up is at our position, collect it
+      if (Math.floor(left) === gridX && Math.floor(top) === gridY) {
+        console.log(`MATCH FOUND! Power-up at player position`);
+        
+        // Get the power-up type from the data attribute
+        const powerUpType = powerUpEl.getAttribute('data-type');
+        console.log(`Power-up type: ${powerUpType}`);
+        
+        if (powerUpType) {
+          // Create a floating notification
+          const notification = document.createElement('div');
+          notification.className = 'powerup-notification';
+          
+          // Get the icon based on power-up type
+          let icon = '?';
+          if (powerUpType === 'bomb') icon = '💣';
+          if (powerUpType === 'flame') icon = '🔥';
+          if (powerUpType === 'speed') icon = '⚡';
+          
+          notification.textContent = `${icon} +1`;
+          notification.style.cssText = `
+            position: absolute;
+            left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
+            top: ${gridY * TILE_SIZE}px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 0 0 3px black;
+            z-index: 1000;
+            pointer-events: none;
+            animation: float-up 1.5s forwards;
+          `;
+          
+          // Add float-up animation if it doesn't exist
+          if (!document.getElementById('float-up-animation')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'float-up-animation';
+            styleEl.textContent = `
+              @keyframes float-up {
+                0% { transform: translateY(0); opacity: 1; }
+                100% { transform: translateY(-50px); opacity: 0; }
+              }
+            `;
+            document.head.appendChild(styleEl);
+          }
+          
+          // Add notification to the DOM
+          document.body.appendChild(notification);
+          
+          // Remove notification after animation
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification);
+            }
+          }, 1500);
+          
+          // Remove the power-up element from the DOM
+          powerUpEl.remove();
+          
+          // Emit a power-up applied event with visual verification
+          eventBus.emit('powerup:applied', {
+            playerId: this.id,
+            type: powerUpType,
+            source: 'visual_verification'
+          });
+          
+          // Also emit the collected event for the HUD
+          eventBus.emit('powerup:collected', {
+            playerId: this.id,
+            type: powerUpType,
+            position: { x: gridX, y: gridY }
+          });
+          
+          console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
+          foundPowerUp = true;
+        }
+      } else {
+        console.log(`No match: Player at (${gridX}, ${gridY}), Power-up at (${Math.floor(left)}, ${Math.floor(top)})`);
+      }
+    });
+    
+    // If we found and collected a power-up, also call the powerups.ts function to clean up its internal state
+    if (foundPowerUp) {
+      // This won't actually apply the power-up again, but will clean up the internal state
+      checkAndCollectPowerUp(gridX, gridY, this.id);
+    }
+  }
+  
+  // Handle stat updates (from other systems)
+  private handleStatUpdate(data: any): void {
+    // Only process if this is for this player
+    if (data.playerId !== this.id) return;
+    
+    console.log(`Updating player stats for ${this.id}:`, data);
+    
+    switch (data.type) {
+      case 'bombCapacity':
+      case PowerUpType.BOMB:
+        if (data.value > 0) {
+          this.bombCapacity = data.value;
+        } else {
+          this.bombCapacity += 1;
+        }
+        console.log(`Set bomb capacity to ${this.bombCapacity}`);
+        break;
+      case 'explosionRange':
+      case PowerUpType.FLAME:
+        if (data.value > 0) {
+          this.explosionRange = data.value;
+        } else {
+          this.explosionRange += 1;
+        }
+        console.log(`Set explosion range to ${this.explosionRange}`);
+        break;
+      case 'speed':
+      case PowerUpType.SPEED:
+        if (data.value > 0) {
+          this.speed = data.value;
+        } else {
+          this.speed += 0.5;
+        }
+        console.log(`Set speed to ${this.speed}`);
+        break;
+      case 'extraLife':
+        this.lives += 1;
+        console.log(`Increased lives to ${this.lives}`);
+        break;
+      default:
+        console.log(`Unknown stat update type: ${data.type}`);
     }
     
     // Emit stats update event
@@ -753,6 +943,11 @@ export class Player {
           100% { transform: scale(1); opacity: 1; }
         }
         
+        @keyframes powerup-spawn-indicator {
+          0% { transform: scale(0); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+        
         .green-space {
           animation: green-space-appear 0.3s forwards;
         }
@@ -835,6 +1030,44 @@ export class Player {
           y: Math.floor(y),
           type: 'destructible'
         });
+        
+        // Wait for the block destruction animation to complete before spawning a power-up
+        setTimeout(() => {
+          // Try to spawn a power-up at this position
+          const powerUp = maybeSpawnPowerup(Math.floor(x), Math.floor(y));
+          
+          // If a power-up was spawned, render it to the game container
+          if (powerUp && this.gameContainer) {
+            powerUp.render(this.gameContainer);
+            console.log(`Power-up spawned: ${powerUp.type} at (${Math.floor(x)}, ${Math.floor(y)})`);
+            
+            // Add a visual indicator for the power-up spawn
+            const spawnIndicator = document.createElement('div');
+            spawnIndicator.className = 'powerup-spawn-indicator';
+            spawnIndicator.style.cssText = `
+              position: absolute;
+              left: ${Math.floor(x) * TILE_SIZE}px;
+              top: ${Math.floor(y) * TILE_SIZE}px;
+              width: ${TILE_SIZE}px;
+              height: ${TILE_SIZE}px;
+              background-color: transparent;
+              border-radius: 50%;
+              z-index: 45;
+              box-shadow: 0 0 20px white;
+              animation: powerup-spawn-indicator 0.5s forwards;
+              pointer-events: none;
+            `;
+            
+            if (this.gameContainer) {
+              this.gameContainer.appendChild(spawnIndicator);
+              
+              // Remove indicator after animation
+              setTimeout(() => {
+                spawnIndicator.remove();
+              }, 500);
+            }
+          }
+        }, 400); // Wait for block destruction animation to complete
       });
       
       return true; // Block was destroyed

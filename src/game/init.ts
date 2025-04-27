@@ -4,7 +4,6 @@ import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
 import { clearPowerUps } from './powerups';
 import { initPowerUpHUD, resetPowerUps } from './powerup-hud';
-import { createPowerUpTestButton } from './power-up-test';
 import { initLobby, playerStore } from './lobby';
 import { Player } from '../entities/player';
 import { PlayerController } from './PlayerController';
@@ -239,9 +238,6 @@ function startGame(container: HTMLElement, gameData?: any) {
   
   // Initialize power-up HUD
   initPowerUpHUD();
-  
-  // Create power-up test buttons
-  createPowerUpTestButton();
   
   // Generate map with seed from server if available
   if (gameData && gameData.mapSeed) {
