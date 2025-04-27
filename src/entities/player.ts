@@ -85,7 +85,7 @@ export class Player {
     // Listen for stat update events
     eventBus.on('stat:updated', this.handleStatUpdate.bind(this));
     
-    // Listen for hit events
+    // Listen for hit events from explosions
     eventBus.on('player:hit', this.handleHit.bind(this));
     
     // Set up keyboard controls if this is the local player

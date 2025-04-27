@@ -3,7 +3,7 @@ import { generateMap, resetMap } from './map';
 import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
 import { clearPowerUps } from './powerups';
-import { initPowerUpHUD, resetPowerUps } from './powerup-hud';
+import { init as initHUD, resetPowerUps } from '../ui/hud';
 import { initLobby, playerStore } from './lobby';
 import { Player } from '../entities/player';
 import { PlayerController } from './PlayerController';
@@ -236,8 +236,8 @@ function startGame(container: HTMLElement, gameData?: any) {
   
   document.body.appendChild(playerInfo);
   
-  // Initialize power-up HUD
-  initPowerUpHUD();
+  // Initialize game HUD
+  initHUD();
   
   // Generate map with seed from server if available
   if (gameData && gameData.mapSeed) {
