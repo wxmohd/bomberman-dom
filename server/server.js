@@ -372,29 +372,29 @@ io.on('connection', (socket) => {
       
       // Send updated lobby state to all clients
       io.emit('lobby_update', { lobby: lobbyState });
-      
-      // Check if all players are ready to start the game
-      checkGameStart();
     }
   });
   
-  // Handle direct game start request (from countdown timer)
-  socket.on('start_game', () => {
-    console.log(`Player ${socket.id} requested to start the game directly`);
+  // Handle direct game start request (from single player or countdown timer)
+  socket.on('start_game', (data) => {
+    console.log(`Player ${socket.id} requested to start the game directly`, data);
     
-    // Make sure we have at least 2 players
-    if (lobbyState.players.length < 2) {
-      socket.emit('error', { message: 'Need at least 2 players to start the game' });
+    // Check if this is a single player game request
+    const isSinglePlayerMode = data && data.singlePlayer === true;
+    
+    // Make sure we have at least 2 players for multiplayer games
+    if (lobbyState.players.length < 2 && !isSinglePlayerMode) {
+      socket.emit('error', { message: 'Need at least 2 players to start a multiplayer game' });
       return;
     }
     
     // Start the game immediately
-    startGame();
+    startGame(isSinglePlayerMode);
   });
 });
 
 // Start game function
-function startGame() {
+function startGame(isSinglePlayerMode = false) {
   // Set game in progress
   gameState.gameInProgress = true;
   lobbyState.gameInProgress = true;

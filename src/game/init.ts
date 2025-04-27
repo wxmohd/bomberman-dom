@@ -4,7 +4,6 @@ import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
 import { clearPowerUps } from './powerups';
 import { initPowerUpHUD, resetPowerUps } from './powerup-hud';
-import { createPowerUpTestButton } from './power-up-test';
 import { initLobby, playerStore } from './lobby';
 import { Player } from '../entities/player';
 import { PlayerController } from './PlayerController';
@@ -12,7 +11,7 @@ import { PlayerRenderer } from './PlayerRenderer';
 import { BombSystem } from './BombSystem';
 import { BombManager } from './BombManager';
 import { BombController } from './BombController';
-import { addTestPlayer } from './test-player';
+// import { addTestPlayer } from './test-player';
 import { PLAYER_STARTING_POSITIONS } from './map';
 import { TILE_SIZE } from './constants';
 
@@ -139,7 +138,32 @@ function startGame(container: HTMLElement, gameData?: any) {
   initRenderer(container);
   
   // Get player data from the store
-  const { players, currentPlayer } = playerStore.getState();
+  const { players } = playerStore.getState();
+  
+  // IMPORTANT: Always use the first player as the local player for simplicity
+  // This ensures consistent behavior in single-player mode
+  if (players.length > 0) {
+    localStorage.setItem('playerId', players[0].id);
+    console.log(`Setting local player ID to first player: ${players[0].id}`);
+  } else {
+    console.error('No players available!');
+  }
+  
+  // Get the current player from the players list (should be the first player)
+  const currentPlayer = players.length > 0 ? players[0] : null;
+  
+  // Double-check that the player ID is set correctly
+  if (currentPlayer) {
+    // Force the ID to match the first player
+    localStorage.setItem('playerId', currentPlayer.id);
+    console.log(`Confirmed player ID in localStorage: ${currentPlayer.id}`);
+    
+    // Also store in session storage as a backup
+    sessionStorage.setItem('playerId', currentPlayer.id);
+    console.log(`Also stored in sessionStorage: ${currentPlayer.id}`);
+  } else {
+    console.error('No current player found!');
+  }
   
   // Create a controls container that won't be cleared
   let controlsContainer = document.getElementById('game-controls');
@@ -215,9 +239,6 @@ function startGame(container: HTMLElement, gameData?: any) {
   // Initialize power-up HUD
   initPowerUpHUD();
   
-  // Create power-up test buttons
-  createPowerUpTestButton();
-  
   // Generate map with seed from server if available
   if (gameData && gameData.mapSeed) {
     console.log(`Using server-provided map seed: ${gameData.mapSeed}`);
@@ -243,24 +264,138 @@ function startGame(container: HTMLElement, gameData?: any) {
   // Update the bomb system with the current grid
   bombSystem.updateGrid(currentMapData.grid);
   
-  // Initialize player controller with the grid size
-  const playerController = new PlayerController(bombSystem, currentMapData.grid.length);
+  // Create real players instead of test player
+  console.log('Attempting to create players...');
+  console.log('Map container:', mapContainer);
+  console.log('Current player:', currentPlayer);
+  console.log('All players:', players);
+  console.log('Starting positions:', PLAYER_STARTING_POSITIONS);
   
-  // Render map first
-  renderMap(currentMapData);
-  
-  // Get the map container for direct player addition
-  const gameMapContainer = getMapContainer();
-  if (!gameMapContainer) {
-    console.error('Map container not found!');
-    return;
+  // Ensure map container exists
+  let mapContainerElement = mapContainer;
+  if (!mapContainerElement) {
+    console.error('Map container is missing! Creating it...');
+    const gameArea = document.getElementById('game-area');
+    if (gameArea) {
+      mapContainerElement = document.createElement('div');
+      mapContainerElement.id = 'map-container';
+      mapContainerElement.style.position = 'relative';
+      mapContainerElement.style.width = `${currentMapData.width * TILE_SIZE}px`;
+      mapContainerElement.style.height = `${currentMapData.height * TILE_SIZE}px`;
+      gameArea.appendChild(mapContainerElement);
+      console.log('Created map container:', mapContainerElement);
+    } else {
+      console.error('Game area not found! Cannot create map container.');
+    }
   }
   
-  // Add a test player directly to the map AFTER rendering
-  setTimeout(() => {
-    addTestPlayer(gameMapContainer);
-    console.log('Added test player with direct DOM manipulation');
-  }, 100);
+  if (mapContainerElement) {
+    // First, create all players using direct DOM approach for reliability
+    players.forEach((playerData, index) => {
+      const isLocalPlayer = playerData.id === localStorage.getItem('playerId');
+      const pos = isLocalPlayer ? 
+        PLAYER_STARTING_POSITIONS[0] : // Use first position for local player
+        PLAYER_STARTING_POSITIONS[(index) % PLAYER_STARTING_POSITIONS.length];
+      
+      console.log(`Creating ${isLocalPlayer ? 'local' : 'remote'} player: ${playerData.nickname} at position: ${pos.x},${pos.y}`);
+      
+      // Create with direct DOM first to ensure visibility
+      createPlayerDirectly(mapContainerElement, playerData.id, playerData.nickname, pos.x, pos.y);
+      
+      // Then try with Player class for full functionality
+      try {
+        const player = new Player(
+          playerData.id,
+          playerData.nickname,
+          pos.x,
+          pos.y,
+          mapContainerElement
+        );
+        console.log(`Created player instance: ${player.nickname}`);
+      } catch (error) {
+        console.error(`Error creating player ${playerData.nickname} with Player class:`, error);
+      }
+    });
+    
+    // Verify players are in the DOM after a short delay
+    setTimeout(() => {
+      const playerElements = document.querySelectorAll('.player');
+      console.log(`Found ${playerElements.length} player elements in the DOM`);
+      
+      if (playerElements.length === 0) {
+        console.error('No player elements found in the DOM after creation!');
+        
+        // Last resort: create a test player directly
+        if (currentPlayer) {
+          console.log('Creating test player as last resort...');
+          createPlayerDirectly(mapContainer, 'test-player', 'Test Player', 1, 1);
+        }
+      }
+    }, 1000);
+  } else {
+    console.error('Cannot create players: map container is still missing');
+  }
+  
+  // Function to create player directly with DOM manipulation as fallback
+function createPlayerDirectly(container: HTMLElement, id: string, nickname: string, x: number, y: number): void {
+  console.log(`Creating player directly with DOM: ${nickname} at ${x},${y}`);
+  
+  // Create player element
+  const playerEl = document.createElement('div');
+  playerEl.className = 'player';
+  playerEl.id = `player-${id}`;
+  
+  // Style the player
+  playerEl.style.position = 'absolute';
+  playerEl.style.left = `${x * TILE_SIZE}px`;
+  playerEl.style.top = `${y * TILE_SIZE}px`;
+  playerEl.style.width = `${TILE_SIZE}px`;
+  playerEl.style.height = `${TILE_SIZE}px`;
+  playerEl.style.backgroundColor = id === localStorage.getItem('playerId') ? '#FF0000' : '#0000FF'; // Red for local, blue for remote
+  playerEl.style.borderRadius = '50%';
+  playerEl.style.zIndex = '1000';
+  playerEl.style.boxShadow = '0 0 15px 5px rgba(255,0,0,0.7)';
+  playerEl.style.border = '2px solid white';
+  playerEl.style.boxSizing = 'border-box';
+  
+  // Add inner element for better visibility
+  const innerElement = document.createElement('div');
+  innerElement.style.position = 'absolute';
+  innerElement.style.width = '70%';
+  innerElement.style.height = '70%';
+  innerElement.style.left = '15%';
+  innerElement.style.top = '15%';
+  innerElement.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+  innerElement.style.borderRadius = '50%';
+  playerEl.appendChild(innerElement);
+  
+  // Add name tag
+  const nameTag = document.createElement('div');
+  nameTag.className = 'player-name';
+  nameTag.textContent = nickname;
+  nameTag.style.position = 'absolute';
+  nameTag.style.bottom = `${TILE_SIZE + 5}px`;
+  nameTag.style.left = '50%';
+  nameTag.style.transform = 'translateX(-50%)';
+  nameTag.style.color = 'white';
+  nameTag.style.fontWeight = 'bold';
+  nameTag.style.textShadow = '1px 1px 2px black';
+  nameTag.style.whiteSpace = 'nowrap';
+  nameTag.style.fontSize = '12px';
+  
+  // Add to player
+  playerEl.appendChild(nameTag);
+  
+  // Add to container
+  container.appendChild(playerEl);
+  console.log('Player element added directly to DOM');
+  
+  // Force a reflow
+  void playerEl.offsetWidth;
+}
+
+// Render map first
+  renderMap(currentMapData);
   
   // Emit map ready event with player data
   eventBus.emit('map:ready', { 

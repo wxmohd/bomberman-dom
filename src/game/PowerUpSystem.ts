@@ -115,7 +115,7 @@ export class PowerUpSystem {
     switch (powerUp.type) {
       case PowerUpType.BOMB:
         // Get current bomb capacity and increase by 1
-        eventBus.emit('powerup:applied', { 
+        eventBus.emit('stat:updated', { 
           playerId, 
           type: 'bombCapacity', 
           value: 0 // Will be determined by BombManager
@@ -124,7 +124,7 @@ export class PowerUpSystem {
         
       case PowerUpType.FLAME:
         // Get current explosion range and increase by 1
-        eventBus.emit('powerup:applied', { 
+        eventBus.emit('stat:updated', { 
           playerId, 
           type: 'explosionRange', 
           value: 0 // Will be determined by BombManager
@@ -133,7 +133,7 @@ export class PowerUpSystem {
         
       case PowerUpType.SPEED:
         // Increase speed by 0.5
-        eventBus.emit('powerup:applied', { 
+        eventBus.emit('stat:updated', { 
           playerId, 
           type: 'speed', 
           value: 0 // Will be determined by Player
@@ -142,7 +142,7 @@ export class PowerUpSystem {
         
       case PowerUpType.LIFE:
         // Add an extra life
-        eventBus.emit('powerup:applied', { 
+        eventBus.emit('stat:updated', { 
           playerId, 
           type: 'extraLife', 
           value: 1

@@ -127,8 +127,8 @@ export class BombManager {
       playerStats.maxBombs += 1;
       this.playerStats.set(playerId, playerStats);
       
-      // Emit event for power-up
-      eventBus.emit('powerup:applied', { 
+      // Emit event for power-up (using a different event name to avoid conflicts)
+      eventBus.emit('stat:updated', { 
         playerId, 
         type: 'bombCapacity', 
         value: playerStats.maxBombs 
@@ -143,8 +143,8 @@ export class BombManager {
       playerStats.explosionRange += 1;
       this.playerStats.set(playerId, playerStats);
       
-      // Emit event for power-up
-      eventBus.emit('powerup:applied', { 
+      // Emit event for power-up (using a different event name to avoid conflicts)
+      eventBus.emit('stat:updated', { 
         playerId, 
         type: 'explosionRange', 
         value: playerStats.explosionRange 

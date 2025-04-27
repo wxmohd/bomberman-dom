@@ -63,8 +63,18 @@ export enum PowerUpType {
 // Power-up class
 export class PowerUp {
   private element: HTMLElement | null = null;
-  private collected = false;
-  private createdAt: number;
+  private _collected = false;
+  public createdAt: number;
+  
+  // Public getter for collected state
+  get collected(): boolean {
+    return this._collected;
+  }
+  
+  // Check if power-up has a visible DOM element
+  hasVisibleElement(): boolean {
+    return this.element !== null && this.element.parentNode !== null;
+  }
   
   constructor(
     public x: number,
@@ -111,43 +121,50 @@ export class PowerUp {
       this.element.parentNode.removeChild(this.element);
     }
     
+    // Create a direct DOM element instead of using h function
+    this.element = document.createElement('div');
+    this.element.className = `powerup powerup-${this.type}`;
+    
+    // Set the data-type attribute directly
+    this.element.setAttribute('data-type', this.type);
+    
     const color = this.getColor();
     const icon = this.getIcon();
     
-    // Create power-up element with icon
-    const powerupElement = h('div', {
-      class: `powerup powerup-${this.type}`,
-      style: `
-        position: absolute;
-        left: ${this.x * TILE_SIZE + TILE_SIZE / 4}px;
-        top: ${this.y * TILE_SIZE + TILE_SIZE / 4}px;
-        width: ${TILE_SIZE / 2}px;
-        height: ${TILE_SIZE / 2}px;
-        background-color: ${color};
-        border-radius: 50%;
-        z-index: 2;
-        box-shadow: 0 0 8px ${color}80;
-        animation: powerup-pulse 1s infinite alternate;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: ${TILE_SIZE / 4}px;
-      `
-    }, [icon]);
+    // Set styles directly
+    this.element.style.position = 'absolute';
+    this.element.style.left = `${this.x * TILE_SIZE}px`; // Use full tile position
+    this.element.style.top = `${this.y * TILE_SIZE}px`; // Use full tile position
+    this.element.style.width = `${TILE_SIZE}px`; // Use full tile size
+    this.element.style.height = `${TILE_SIZE}px`; // Use full tile size
+    this.element.style.backgroundColor = color;
+    this.element.style.borderRadius = '50%';
+    this.element.style.zIndex = '50';
+    this.element.style.boxShadow = `0 0 10px ${color}, 0 0 15px ${color}`;
+    this.element.style.display = 'flex';
+    this.element.style.justifyContent = 'center';
+    this.element.style.alignItems = 'center';
+    this.element.style.fontSize = `${TILE_SIZE / 2}px`;
+    this.element.style.pointerEvents = 'none';
     
-    this.element = render(powerupElement) as HTMLElement;
+    // Add text content
+    this.element.textContent = icon;
     
     // Add spawn animation
     this.element.style.animation = 'powerup-spawn 0.3s ease-out forwards, powerup-pulse 1s infinite alternate 0.3s';
     
+    // Add to container
     container.appendChild(this.element);
+    
+    // Log for debugging
+    console.log(`Rendered power-up at (${this.x}, ${this.y}) with type ${this.type}`);
   }
   
   // Collect the power-up
   collect(playerId: string): void {
-    if (this.collected) return;
+    if (this._collected) return;
     
-    this.collected = true;
+    this._collected = true;
     
     // Add collection animation
     if (this.element) {
@@ -216,7 +233,7 @@ export class PowerUp {
   
   // Check if power-up is at specific coordinates
   isAt(x: number, y: number): boolean {
-    return this.x === x && this.y === y;
+    return Math.floor(this.x) === Math.floor(x) && Math.floor(this.y) === Math.floor(y);
   }
   
   // Remove the power-up from the DOM
@@ -244,8 +261,8 @@ export function clearPowerUps(): void {
 
 // Spawn a power-up with a chance
 export function maybeSpawnPowerup(x: number, y: number): PowerUp | null {
-  // 30% chance to spawn a power-up
-  const POWERUP_CHANCE = 0.3;
+  // 15% chance to spawn a power-up (reduced to make them more rare)
+  const POWERUP_CHANCE = 0.15;
   
   // Check if there's already a power-up at this position
   const existingPowerup = activePowerUps.find(p => p.isAt(x, y));
@@ -288,16 +305,37 @@ export function maybeSpawnPowerup(x: number, y: number): PowerUp | null {
 
 // Apply power-up effect to player
 export function applyPowerUp(playerId: string, type: PowerUpType): void {
-  // Emit power-up collected event (will be handled by player.ts)
-  eventBus.emit('powerup:collected', { playerId, type });
+  // This function is now deprecated - we use visual verification instead
+  // We'll keep it for backward compatibility but mark it in the logs
+  console.log(`WARNING: Using deprecated applyPowerUp function. Use visual verification instead.`);
+  
+  // We no longer emit events from here - the Player.checkForVisiblePowerUp method handles this
 }
 
 // Check for power-up at position and collect if found
 export function checkAndCollectPowerUp(x: number, y: number, playerId: string): boolean {
+  // Make sure we have active power-ups to check
+  if (activePowerUps.length === 0) {
+    return false;
+  }
+
+  // Find a power-up at this position
   const powerupIndex = activePowerUps.findIndex(p => p.isAt(x, y));
   
   if (powerupIndex !== -1) {
     const powerup = activePowerUps[powerupIndex];
+    
+    // Extra checks to ensure this is a valid power-up:
+    // 1. Must exist
+    // 2. Must not be already collected
+    // 3. Must have a DOM element (visible)
+    // 4. Must be older than 500ms (to avoid collecting during spawn animation)
+    if (!powerup || 
+        powerup.collected || 
+        !powerup.hasVisibleElement() || 
+        Date.now() - powerup.createdAt < 500) {
+      return false;
+    }
     
     // Collect the power-up and pass the player ID
     powerup.collect(playerId);
