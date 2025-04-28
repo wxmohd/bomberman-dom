@@ -5,6 +5,9 @@ import { EVENTS } from '../multiplayer/events';
 import { sendToServer } from '../multiplayer/socket';
 import { maybeSpawnPowerup, PowerUpType, checkAndCollectPowerUp } from '../game/powerups';
 
+// Game state tracking
+let isGamePaused = false;
+
 export enum Direction {
   UP,
   RIGHT,
@@ -87,6 +90,15 @@ export class Player {
     
     // Listen for hit events from explosions
     eventBus.on('player:hit', this.handleHit.bind(this));
+    
+    // Listen for game pause/resume events
+    eventBus.on('game:pause', () => {
+      isGamePaused = true;
+    });
+    
+    eventBus.on('game:resume', () => {
+      isGamePaused = false;
+    });
     
     // Set up keyboard controls if this is the local player
     if (this.isLocalPlayer()) {
@@ -200,6 +212,12 @@ export class Player {
           100% { transform: scale(1.1); box-shadow: 0 0 20px 8px rgba(255,0,0,0.9); }
         }
         
+        @keyframes player-hit {
+          0% { transform: scale(1); background-color: inherit; }
+          50% { transform: scale(1.2); background-color: red; }
+          100% { transform: scale(1); background-color: inherit; }
+        }
+        
         .player.local {
           animation: player-pulse 0.8s infinite alternate;
         }
@@ -207,6 +225,10 @@ export class Player {
         .player.invulnerable {
           opacity: 0.7;
           animation: player-pulse 0.3s infinite alternate;
+        }
+        
+        .player.hit {
+          animation: player-hit 0.5s ease-in-out;
         }
       `;
       document.head.appendChild(style);
@@ -239,6 +261,11 @@ export class Player {
   
   // Move in a direction
   public move(direction: Direction, deltaTime: number, collisionCallback: (x: number, y: number) => boolean): void {
+    // Don't allow movement if game is paused
+    if (isGamePaused) {
+      return;
+    }
+    
     if (direction === Direction.NONE) {
       this.moving = false;
       return;
@@ -305,6 +332,12 @@ export class Player {
       // Skip if player is not in the game
       if (!this.playerElement) {
         console.log('Player element not found, skipping keyboard input');
+        return;
+      }
+      
+      // Skip if game is paused
+      if (isGamePaused) {
+        console.log('Game is paused, ignoring keyboard input');
         return;
       }
       
@@ -654,6 +687,18 @@ export class Player {
     // Reduce lives
     this.lives -= 1;
     
+    console.log(`Player ${this.id} (${this.nickname}) hit by explosion! Lives remaining: ${this.lives}`);
+    
+    // Visual feedback for being hit
+    if (this.playerElement) {
+      this.playerElement.classList.add('hit');
+      setTimeout(() => {
+        if (this.playerElement) {
+          this.playerElement.classList.remove('hit');
+        }
+      }, 500);
+    }
+    
     // Emit hit event
     eventBus.emit('player:damaged', {
       id: this.id,
@@ -665,6 +710,7 @@ export class Player {
     
     // Check if player is eliminated
     if (this.lives <= 0) {
+      console.log(`Player ${this.id} (${this.nickname}) has been eliminated!`);
       eventBus.emit('player:eliminated', {
         id: this.id,
         eliminatedBy: data.attackerId
@@ -681,10 +727,20 @@ export class Player {
       window.clearTimeout(this.invulnerabilityTimer);
     }
     
+    // Add visual indicator for invulnerability
+    if (this.playerElement) {
+      this.playerElement.classList.add('invulnerable');
+    }
+    
     // Set invulnerability timer
     this.invulnerabilityTimer = window.setTimeout(() => {
       this.invulnerable = false;
       this.invulnerabilityTimer = null;
+      
+      // Remove visual indicator
+      if (this.playerElement) {
+        this.playerElement.classList.remove('invulnerable');
+      }
       
       // Emit invulnerability end event
       eventBus.emit('player:invulnerabilityEnd', { id: this.id });
@@ -737,6 +793,9 @@ export class Player {
   public placeBomb(): void {
     // Skip if player is not in the game
     if (!this.playerElement || !this.gameContainer) return;
+    
+    // Skip if game is paused
+    if (isGamePaused) return;
     
     // Check bomb cooldown
     if (this.bombCooldown) return;
@@ -864,6 +923,23 @@ export class Player {
     // Destroy block at center if there is one
     this.destroyBlockAt(x, y, destroyedBlocks);
     
+    // Check if any player is at the center of the explosion
+    this.checkPlayerHit(x, y);
+    
+    // Check if the local player (this player) is at the center of the explosion
+    if (this.isLocalPlayer()) {
+      const playerX = Math.floor(this.x);
+      const playerY = Math.floor(this.y);
+      
+      if (playerX === Math.floor(x) && playerY === Math.floor(y)) {
+        console.log(`Local player hit by own bomb at center (${x}, ${y})`);
+        eventBus.emit('player:hit', {
+          playerId: this.id,
+          attackerId: this.id
+        });
+      }
+    }
+    
     // Create explosion in four directions
     const directions = [
       { dx: 0, dy: -1, name: 'up' },    // Up
@@ -903,6 +979,23 @@ export class Player {
         
         // Check if there's a block at this position and destroy it
         const wasDestroyed = this.destroyBlockAt(explosionX, explosionY, destroyedBlocks);
+        
+        // Check if any player is at this position
+        this.checkPlayerHit(explosionX, explosionY);
+        
+        // Check if the local player (this player) is at this position
+        if (this.isLocalPlayer()) {
+          const playerX = Math.floor(this.x);
+          const playerY = Math.floor(this.y);
+          
+          if (playerX === Math.floor(explosionX) && playerY === Math.floor(explosionY)) {
+            console.log(`Local player hit by own bomb explosion at (${explosionX}, ${explosionY})`);
+            eventBus.emit('player:hit', {
+              playerId: this.id,
+              attackerId: this.id
+            });
+          }
+        }
         
         // Remove explosion after animation
         setTimeout(() => {
@@ -969,6 +1062,38 @@ export class Player {
     }
     
     return true;
+  }
+  
+  // Check if any player is at the specified position and trigger hit event
+  private checkPlayerHit(x: number, y: number): void {
+    // Get all player elements
+    const playerElements = document.querySelectorAll('.player');
+    
+    // Check each player
+    playerElements.forEach(playerEl => {
+      const player = playerEl as HTMLElement;
+      const playerId = player.id.replace('player-', '');
+      
+      // Get player position
+      const playerX = parseInt(player.style.left) / TILE_SIZE;
+      const playerY = parseInt(player.style.top) / TILE_SIZE;
+      
+      // Check if player is at the explosion position (using grid coordinates)
+      if (Math.floor(playerX) === Math.floor(x) && Math.floor(playerY) === Math.floor(y)) {
+        console.log(`Player ${playerId} is at explosion position (${Math.floor(x)}, ${Math.floor(y)})`);
+        
+        // Emit hit event
+        eventBus.emit('player:hit', {
+          playerId: playerId,
+          attackerId: this.id
+        });
+        
+        // If this is the local player, also check if we need to emit a hit event for ourselves
+        if (playerId === localStorage.getItem('playerId')) {
+          console.log(`Local player hit by explosion!`);
+        }
+      }
+    });
   }
   
   // Destroy a block at the specified coordinates
