@@ -26,6 +26,10 @@ const playerPowerUps: PlayerPowerUps = {};
 // HUD container element
 let hudContainer: HTMLElement | null = null;
 
+// Game state variables
+let isGamePaused = false;
+let pauseOverlay: HTMLElement | null = null;
+
 // Initialize the HUD
 export function initHUD(): void {
   // Create HUD container if it doesn't exist
@@ -49,6 +53,9 @@ export function initHUD(): void {
     
     // Update the HUD initially
     updateHUD();
+    
+    // Set up keyboard controls for pause/resume
+    setupPauseControls();
     
     // Adjust position once player-info div is available
     setTimeout(() => {
@@ -144,6 +151,29 @@ function addHUDStyles(): void {
       margin-left: auto;
     }
     
+    .controls-indicator {
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+    
+    .controls-indicator strong,
+    .control-key {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      text-align: center;
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      margin-right: 5px;
+      font-weight: bold;
+      font-family: monospace;
+    }
+    
     @keyframes powerup-highlight {
       0% { transform: scale(1); }
       50% { transform: scale(1.2); color: yellow; }
@@ -197,6 +227,98 @@ export function updateHUD(): void {
     const playerHUD = createPlayerHUD(playerId, powerups);
     hudContainer!.appendChild(playerHUD);
   });
+}
+
+// Set up keyboard controls for pause/resume
+function setupPauseControls(): void {
+  document.addEventListener('keydown', (event) => {
+    // Use 'p' key to pause the game
+    if (event.key === 'p' || event.key === 'P') {
+      if (!isGamePaused) {
+        pauseGame();
+      }
+    }
+    
+    // Use 'r' key to resume the game
+    if (event.key === 'r' || event.key === 'R') {
+      if (isGamePaused) {
+        resumeGame();
+      }
+    }
+  });
+}
+
+// Pause the game
+function pauseGame(): void {
+  isGamePaused = true;
+  showPauseOverlay();
+  eventBus.emit('game:pause');
+}
+
+// Resume the game
+function resumeGame(): void {
+  isGamePaused = false;
+  hidePauseOverlay();
+  eventBus.emit('game:resume');
+}
+
+// Show pause overlay
+function showPauseOverlay(): void {
+  // Remove existing overlay if it exists
+  hidePauseOverlay();
+  
+  // Create pause overlay
+  pauseOverlay = document.createElement('div');
+  pauseOverlay.className = 'pause-overlay';
+  pauseOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+  `;
+  
+  // Create pause message
+  const pauseMessage = document.createElement('h1');
+  pauseMessage.textContent = 'GAME PAUSED';
+  pauseMessage.style.cssText = `
+    color: white;
+    font-size: 48px;
+    margin-bottom: 30px;
+    font-family: 'Arial', sans-serif;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  `;
+  
+  // Create instructions
+  const instructions = document.createElement('div');
+  instructions.textContent = 'Press R to resume';
+  instructions.style.cssText = `
+    color: white;
+    font-size: 24px;
+    margin-bottom: 20px;
+    font-family: 'Arial', sans-serif;
+  `;
+  
+  // Add elements to overlay
+  pauseOverlay.appendChild(pauseMessage);
+  pauseOverlay.appendChild(instructions);
+  
+  // Add to body
+  document.body.appendChild(pauseOverlay);
+}
+
+// Hide pause overlay
+function hidePauseOverlay(): void {
+  if (pauseOverlay && pauseOverlay.parentNode) {
+    pauseOverlay.parentNode.removeChild(pauseOverlay);
+    pauseOverlay = null;
+  }
 }
 
 // Create HUD for a single player
@@ -254,6 +376,36 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   `;
   playerDiv.appendChild(speedStat);
   
+  // Only add pause controls for the local player
+  if (playerId === localStorage.getItem('playerId')) {
+    // Add separator
+    const separator = document.createElement('div');
+    separator.style.cssText = `
+      height: 1px;
+      background-color: rgba(255, 255, 255, 0.3);
+      margin: 8px 0;
+    `;
+    playerDiv.appendChild(separator);
+    
+    // Add pause control
+    const pauseControl = document.createElement('div');
+    pauseControl.className = 'powerup-stat';
+    pauseControl.innerHTML = `
+      <span class="powerup-icon control-key">P</span>
+      <span>Pause Game</span>
+    `;
+    playerDiv.appendChild(pauseControl);
+    
+    // Add resume control
+    const resumeControl = document.createElement('div');
+    resumeControl.className = 'powerup-stat';
+    resumeControl.innerHTML = `
+      <span class="powerup-icon control-key">R</span>
+      <span>Resume Game</span>
+    `;
+    playerDiv.appendChild(resumeControl);
+  }
+  
   return playerDiv;
 }
 
@@ -297,6 +449,19 @@ function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void
 
 // Show game over message
 function showGameOverMessage(playerId: string): void {
+  // Get player nickname if available
+  let playerNickname = playerId;
+  const playerElement = document.getElementById(`player-${playerId}`);
+  if (playerElement) {
+    const nameTagElement = playerElement.querySelector('div');
+    if (nameTagElement && nameTagElement.textContent) {
+      playerNickname = nameTagElement.textContent.replace(' (You)', '');
+    }
+  }
+  
+  // Check if this is the local player
+  const isLocalPlayer = localStorage.getItem('playerId') === playerId;
+  
   // Create game over overlay
   const overlay = document.createElement('div');
   overlay.className = 'game-over-overlay';
@@ -306,36 +471,69 @@ function showGameOverMessage(playerId: string): void {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, 0.8);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    animation: fade-in 0.5s ease-in-out;
   `;
   
   // Create game over message
   const message = document.createElement('h1');
-  message.textContent = `Game Over - Player ${playerId} Eliminated!`;
+  message.textContent = isLocalPlayer ? 
+    `GAME OVER - YOU LOST!` : 
+    `GAME OVER - ${playerNickname} ELIMINATED!`;
   message.style.cssText = `
+    color: #ff3333;
+    font-size: 48px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 15px red;
+    font-family: 'Arial', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    animation: pulse 1.5s infinite alternate;
+  `;
+  
+  // Create lives message
+  const livesMessage = document.createElement('div');
+  livesMessage.textContent = `No lives remaining`;
+  livesMessage.style.cssText = `
     color: white;
-    font-size: 36px;
-    margin-bottom: 20px;
-    text-shadow: 0 0 10px red;
+    font-size: 24px;
+    margin-bottom: 40px;
+    font-family: 'Arial', sans-serif;
   `;
   
   // Create restart button
   const restartButton = document.createElement('button');
-  restartButton.textContent = 'Restart Game';
+  restartButton.textContent = 'Play Again';
   restartButton.style.cssText = `
-    padding: 10px 20px;
-    font-size: 18px;
+    padding: 15px 30px;
+    font-size: 20px;
     background-color: #ff3333;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 10px rgba(255, 51, 51, 0.5);
+    margin-bottom: 20px;
   `;
+  
+  // Button hover effect
+  restartButton.onmouseover = () => {
+    restartButton.style.transform = 'scale(1.1)';
+    restartButton.style.boxShadow = '0 0 20px rgba(255, 51, 51, 0.8)';
+  };
+  
+  restartButton.onmouseout = () => {
+    restartButton.style.transform = 'scale(1)';
+    restartButton.style.boxShadow = '0 0 10px rgba(255, 51, 51, 0.5)';
+  };
   
   // Add click event to restart button
   restartButton.addEventListener('click', () => {
@@ -346,8 +544,27 @@ function showGameOverMessage(playerId: string): void {
     eventBus.emit('game:reset', {});
   });
   
+  // Add animations if not already added
+  if (!document.getElementById('game-over-animations')) {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'game-over-animations';
+    styleEl.textContent = `
+      @keyframes fade-in {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+      }
+      
+      @keyframes pulse {
+        0% { transform: scale(1); text-shadow: 0 0 15px red; }
+        100% { transform: scale(1.05); text-shadow: 0 0 25px red, 0 0 35px red; }
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+  
   // Add elements to overlay
   overlay.appendChild(message);
+  overlay.appendChild(livesMessage);
   overlay.appendChild(restartButton);
   
   // Add overlay to body
