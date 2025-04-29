@@ -69,15 +69,18 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Assign player color
-    const playerColor = playerColors[lobbyState.players.length % playerColors.length];
+    // Assign player color and player number
+    const playerIndex = lobbyState.players.length;
+    const playerColor = playerColors[playerIndex % playerColors.length];
+    const playerNumber = playerIndex + 1; // Player numbers start from 1
     
     // Add player to lobby
     lobbyState.players.push({
       id: socket.id,
       nickname,
       isReady: false,
-      color: playerColor
+      color: playerColor,
+      playerNumber: playerNumber
     });
     
     // Add player to game state for when game starts
@@ -94,8 +97,12 @@ io.on('connection', (socket) => {
       },
       isAlive: true,
       score: 0,
-      color: playerColor
+      color: playerColor,
+      playerNumber: playerNumber
     };
+    
+    // Send player their own player number
+    socket.emit('player:number', { playerNumber });
     
     // Send updated lobby state to all clients
     io.emit('lobby_update', { lobby: lobbyState });
@@ -168,15 +175,23 @@ io.on('connection', (socket) => {
   socket.on('chat', (data) => {
     console.log(`Chat message from ${data.nickname}: ${data.message}`);
     
+    // Find the player's number from the lobby
+    let playerNumber = 0;
+    const playerInLobby = lobbyState.players.find(p => p.id === socket.id);
+    if (playerInLobby && playerInLobby.playerNumber) {
+      playerNumber = playerInLobby.playerNumber;
+    }
+    
     // Create the message data with the server's timestamp if not provided
     const chatMessage = {
       playerId: socket.id,
       nickname: data.nickname,
       message: data.message,
-      timestamp: data.timestamp || Date.now()
+      timestamp: data.timestamp || Date.now(),
+      playerNumber: playerNumber
     };
     
-    console.log('Broadcasting chat message to all clients:', chatMessage);
+    console.log(`Broadcasting chat message from Player ${playerNumber} (${data.nickname}):`, chatMessage);
     
     // Broadcast the message to all clients (including sender)
     io.emit('chat', chatMessage);
@@ -186,15 +201,25 @@ io.on('connection', (socket) => {
   socket.on('CHAT', (data) => {
     console.log(`CHAT event message from ${data.nickname}: ${data.message}`);
     
+    // Find the player's number from the lobby
+    let playerNumber = 0;
+    const playerInLobby = lobbyState.players.find(p => p.id === socket.id);
+    if (playerInLobby && playerInLobby.playerNumber) {
+      playerNumber = playerInLobby.playerNumber;
+    }
+    
     // Create the message data
     const chatMessage = {
       playerId: socket.id,
       nickname: data.nickname,
       message: data.message,
-      timestamp: data.timestamp || Date.now()
+      timestamp: data.timestamp || Date.now(),
+      playerNumber: playerNumber
     };
     
-    // Broadcast the message to all clients using both event names to ensure delivery
+    console.log(`Broadcasting CHAT event from Player ${playerNumber} (${data.nickname}):`, chatMessage);
+    
+    // Broadcast to all clients
     io.emit('chat', chatMessage);
   });
   
@@ -207,12 +232,14 @@ io.on('connection', (socket) => {
     gameState.players[socket.id].y = data.y;
     gameState.players[socket.id].direction = data.direction;
     
-    // Broadcast movement to all other players
-    socket.broadcast.emit('move', {
+    // Broadcast movement to all players including the sender
+    // This ensures consistent state across all clients
+    io.emit('move', {
       playerId: socket.id,
       x: data.x,
       y: data.y,
-      direction: data.direction
+      direction: data.direction,
+      nickname: gameState.players[socket.id].nickname
     });
   });
   
@@ -230,16 +257,18 @@ io.on('connection', (socket) => {
       x: data.x,
       y: data.y,
       explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange,
-      timeRemaining: 3000 // 3 seconds
+      timeRemaining: 2000 // 2 seconds
     };
     
-    // Broadcast bomb placement to all players
+    // Broadcast bomb placement to all players including the sender
+    // This ensures consistent state across all clients
     io.emit('drop_bomb', {
       bombId,
       playerId: socket.id,
       x: data.x,
       y: data.y,
-      explosionRange: gameState.bombs[bombId].explosionRange
+      explosionRange: gameState.bombs[bombId].explosionRange,
+      nickname: gameState.players[socket.id].nickname
     });
     
     // Set timeout for bomb explosion
@@ -253,9 +282,10 @@ io.on('connection', (socket) => {
         ownerId: socket.id,
         x: data.x,
         y: data.y,
-        explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange
+        explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange,
+        nickname: gameState.players[socket.id].nickname
       });
-    }, 3000);
+    }, 2000);
   });
   
   // Handle power-up collection

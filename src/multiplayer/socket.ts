@@ -40,6 +40,12 @@ export function connectToServer(nickname: string): Promise<void> {
       console.log('Connected to server with ID:', socket?.id);
       isConnected = true;
       
+      // Store the socket ID in localStorage for player identification
+      if (socket?.id) {
+        localStorage.setItem('socketId', socket.id);
+        console.log('Stored socket ID in localStorage:', socket.id);
+      }
+      
       // Emit join event with player nickname
       if (socket) {
         socket.emit(EVENTS.JOIN, { nickname });
@@ -160,23 +166,68 @@ function setupGameEventListeners(): void {
 
   // Player moved event
   socket.on(EVENTS.MOVE, (data) => {
+    console.log('Received remote player movement:', data);
     eventBus.emit('remote:player:moved', data);
   });
 
   // Player dropped bomb event
   socket.on(EVENTS.DROP_BOMB, (data) => {
+    console.log('Received remote bomb placement:', data);
     eventBus.emit('remote:bomb:dropped', data);
+  });
+  
+  // Handle player number assignment
+  socket.on(EVENTS.PLAYER_NUMBER, (data) => {
+    console.log('Received player number:', data);
+    
+    // Store player number in localStorage
+    if (data.playerNumber) {
+      localStorage.setItem('playerNumber', data.playerNumber.toString());
+      console.log('Stored player number in localStorage:', data.playerNumber);
+      
+      // Force refresh the player info display
+      const playerInfo = document.getElementById('player-info');
+      if (playerInfo) {
+        const nickname = localStorage.getItem('nickname') || 'Player';
+        const playerNumber = data.playerNumber;
+        const playerColor = data.color || '#FF0000';
+        
+        playerInfo.innerHTML = `
+          <div style="margin-bottom: 5px; font-weight: bold;">You: ${nickname} (P${playerNumber})</div>
+          <div style="width: 20px; height: 20px; background-color: ${playerColor}; border-radius: 50%; display: inline-block; margin-right: 5px;"></div>
+        `;
+      }
+    }
+    
+    // Emit event for other components to react
+    eventBus.emit('player:number:assigned', data);
   });
 
   // Chat message received
   socket.on(EVENTS.CHAT, (data) => {
     console.log('Socket received chat message:', data);
+    
+    // Add a flag to indicate if this is the local player's message
+    const localPlayerId = localStorage.getItem('playerId');
+    data.isLocalPlayer = data.playerId === localPlayerId;
+    
+    console.log(`Chat from ${data.nickname} (${data.isLocalPlayer ? 'local' : 'remote'} player)`);
+    
+    // Emit event for the chat UI to display the message
     eventBus.emit('chat:message:received', data);
   });
   
   // Also listen for the raw 'chat' event as a fallback
   socket.on('chat', (data) => {
     console.log('Socket received raw chat event:', data);
+    
+    // Add a flag to indicate if this is the local player's message
+    const localPlayerId = localStorage.getItem('playerId');
+    data.isLocalPlayer = data.playerId === localPlayerId;
+    
+    console.log(`Chat from ${data.nickname} (${data.isLocalPlayer ? 'local' : 'remote'} player)`);
+    
+    // Emit event for the chat UI to display the message
     eventBus.emit('chat:message:received', data);
   });
 

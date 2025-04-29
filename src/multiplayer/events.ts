@@ -25,6 +25,9 @@ export const EVENTS = {
   
   // Chat events
   CHAT: 'chat',
+  
+  // Player identification events
+  PLAYER_NUMBER: 'player:number',
 };
 
 // Player data interface
@@ -33,6 +36,7 @@ export interface PlayerData {
   nickname: string;
   isReady?: boolean;
   color?: string;
+  playerNumber?: number;
 }
 
 // Lobby data interface
@@ -104,4 +108,6 @@ export interface ChatEventData {
   message: string;
   timestamp: number;
   isSystem?: boolean;
+  playerNumber?: number;
+  isLocalPlayer?: boolean;
 }

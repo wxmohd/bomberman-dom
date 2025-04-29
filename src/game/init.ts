@@ -222,27 +222,43 @@ function startGame(container: HTMLElement, gameData?: any) {
   // Get player data from the store
   const { players } = playerStore.getState();
   
-  // IMPORTANT: Always use the first player as the local player for simplicity
-  // This ensures consistent behavior in single-player mode
-  if (players.length > 0) {
+  // Get the socket ID from the socket connection
+  const socketId = localStorage.getItem('socketId');
+  console.log(`Current socket ID: ${socketId}`);
+  
+  // Find the player that matches the socket ID
+  const localPlayer = players.find(player => player.id === socketId);
+  
+  // If we found a matching player, use that as the local player
+  if (localPlayer) {
+    localStorage.setItem('playerId', localPlayer.id);
+    console.log(`Setting local player ID to match socket: ${localPlayer.id}`);
+  } else if (players.length > 0) {
+    // Fallback: use the first player if no match found
     localStorage.setItem('playerId', players[0].id);
-    console.log(`Setting local player ID to first player: ${players[0].id}`);
+    console.log(`No matching player found, using first player: ${players[0].id}`);
   } else {
     console.error('No players available!');
   }
   
-  // Get the current player from the players list (should be the first player)
-  const currentPlayer = players.length > 0 ? players[0] : null;
+  // Get the current player based on the socket ID
+  const currentPlayer = localPlayer || (players.length > 0 ? players[0] : null);
   
   // Double-check that the player ID is set correctly
   if (currentPlayer) {
-    // Force the ID to match the first player
+    // Store the player ID in localStorage
     localStorage.setItem('playerId', currentPlayer.id);
     console.log(`Confirmed player ID in localStorage: ${currentPlayer.id}`);
     
     // Also store in session storage as a backup
     sessionStorage.setItem('playerId', currentPlayer.id);
     console.log(`Also stored in sessionStorage: ${currentPlayer.id}`);
+    
+    // Store the player number
+    if (currentPlayer.playerNumber) {
+      localStorage.setItem('playerNumber', currentPlayer.playerNumber.toString());
+      console.log(`Stored player number: ${currentPlayer.playerNumber}`);
+    }
   } else {
     console.error('No current player found!');
   }
@@ -310,8 +326,9 @@ function startGame(container: HTMLElement, gameData?: any) {
   `;
   
   if (currentPlayer) {
+    const playerNumber = currentPlayer.playerNumber || 1;
     playerInfo.innerHTML = `
-      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname}</div>
+      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname} (P${playerNumber})</div>
       <div style="width: 20px; height: 20px; background-color: ${currentPlayer.color}; border-radius: 50%; display: inline-block; margin-right: 5px;"></div>
     `;
   }
@@ -374,12 +391,23 @@ function startGame(container: HTMLElement, gameData?: any) {
   if (mapContainerElement) {
     // First, create all players using direct DOM approach for reliability
     players.forEach((playerData, index) => {
-      const isLocalPlayer = playerData.id === localStorage.getItem('playerId');
-      const pos = isLocalPlayer ? 
-        PLAYER_STARTING_POSITIONS[0] : // Use first position for local player
-        PLAYER_STARTING_POSITIONS[(index) % PLAYER_STARTING_POSITIONS.length];
+      // Get player number from player data or use index+1 as fallback
+      const playerNumber = playerData.playerNumber || index + 1;
       
-      console.log(`Creating ${isLocalPlayer ? 'local' : 'remote'} player: ${playerData.nickname} at position: ${pos.x},${pos.y}`);
+      // Check if this is the local player by comparing socket ID
+      const isLocalPlayer = playerData.id === localStorage.getItem('playerId');
+      
+      // If this is the local player, store the player number
+      if (isLocalPlayer) {
+        localStorage.setItem('playerNumber', playerNumber.toString());
+        console.log(`Setting local player number to ${playerNumber}`);
+      }
+      
+      // Use the player's assigned position based on player number
+      const posIndex = (playerNumber - 1) % PLAYER_STARTING_POSITIONS.length;
+      const pos = PLAYER_STARTING_POSITIONS[posIndex];
+      
+      console.log(`Creating ${isLocalPlayer ? 'local' : 'remote'} player: ${playerData.nickname} (Player ${playerNumber}) at position: ${pos.x},${pos.y}`);
       
       // Create with direct DOM first to ensure visibility
       createPlayerDirectly(mapContainerElement, playerData.id, playerData.nickname, pos.x, pos.y);
@@ -391,9 +419,10 @@ function startGame(container: HTMLElement, gameData?: any) {
           playerData.nickname,
           pos.x,
           pos.y,
-          mapContainerElement
+          mapContainerElement,
+          playerNumber
         );
-        console.log(`Created player instance: ${player.nickname}`);
+        console.log(`Created player instance: ${player.nickname} (Player ${playerNumber})`);
       } catch (error) {
         console.error(`Error creating player ${playerData.nickname} with Player class:`, error);
       }
@@ -426,6 +455,88 @@ function startGame(container: HTMLElement, gameData?: any) {
     mapData: currentMapData,
     players,
     currentPlayer
+  });
+  
+  // Set up event listeners for remote player movements
+  eventBus.on('remote:player:moved', (data) => {
+    console.log('Remote player movement:', data);
+    
+    // Skip if this is the local player's movement
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Find the player element
+    const playerElement = document.getElementById(`player-${data.playerId}`);
+    if (!playerElement) {
+      console.error(`Player element not found for ID: ${data.playerId}`);
+      return;
+    }
+    
+    // Update player position
+    playerElement.style.left = `${data.x * TILE_SIZE}px`;
+    playerElement.style.top = `${data.y * TILE_SIZE}px`;
+    
+    console.log(`Updated remote player ${data.playerId} position to ${data.x},${data.y}`);
+  });
+  
+  // Handle remote bomb placements
+  eventBus.on('remote:bomb:dropped', (data) => {
+    console.log('Remote bomb placement:', data);
+    
+    // Skip if this is the local player's bomb
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote bomb placement');
+      return;
+    }
+    
+    // Create bomb element
+    const bomb = document.createElement('div');
+    bomb.className = 'bomb';
+    bomb.id = data.bombId || `bomb_${Date.now()}`;
+    bomb.style.cssText = `
+      position: absolute;
+      left: ${data.x * TILE_SIZE}px;
+      top: ${data.y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-color: black;
+      border-radius: 50%;
+      z-index: 800;
+      animation: bomb-pulse 0.5s infinite alternate;
+      border: 2px solid white;
+      box-sizing: border-box;
+    `;
+    
+    // Add a fuse to make the bomb more visible
+    const fuse = document.createElement('div');
+    fuse.style.cssText = `
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 10px;
+      background-color: #FF4500;
+      z-index: 801;
+    `;
+    bomb.appendChild(fuse);
+    
+    // Add bomb to the container
+    mapContainer.appendChild(bomb);
+    
+    console.log(`Created remote bomb at ${data.x},${data.y} with range ${data.explosionRange}`);
+    
+    // Remove bomb after 2 seconds (matching server timeout)
+    setTimeout(() => {
+      bomb.remove();
+    }, 2000);
   });
   
   console.log('Map generated with players:', players);
