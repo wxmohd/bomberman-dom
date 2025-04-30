@@ -638,6 +638,15 @@ export class Player {
             position: { x: gridX, y: gridY }
           });
           
+          // Send powerup collection to server for websocket synchronization
+          sendToServer(EVENTS.COLLECT_POWERUP, {
+            playerId: this.id,
+            powerupId: `powerup_${Date.now()}`,
+            powerupType: powerUpType,
+            x: gridX,
+            y: gridY
+          });
+          
           console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
           foundPowerUp = true;
         }
