@@ -171,46 +171,6 @@ export class PowerUp {
       // Change animation
       this.element.style.animation = 'powerup-collect 0.5s forwards';
       
-      // Create a floating notification
-      const notification = document.createElement('div');
-      notification.className = 'powerup-notification';
-      notification.textContent = `${this.getIcon()} +1`;
-      notification.style.cssText = `
-        position: absolute;
-        left: ${this.x * TILE_SIZE + TILE_SIZE / 2}px;
-        top: ${this.y * TILE_SIZE}px;
-        color: ${this.getColor()};
-        font-weight: bold;
-        font-size: 16px;
-        text-shadow: 0 0 3px white;
-        z-index: 10;
-        pointer-events: none;
-        animation: float-up 1.5s forwards;
-      `;
-      
-      // Add float-up animation if it doesn't exist
-      if (!document.getElementById('float-up-animation')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'float-up-animation';
-        styleEl.textContent = `
-          @keyframes float-up {
-            0% { transform: translateY(0); opacity: 1; }
-            100% { transform: translateY(-50px); opacity: 0; }
-          }
-        `;
-        document.head.appendChild(styleEl);
-      }
-      
-      // Add notification to the DOM
-      document.body.appendChild(notification);
-      
-      // Remove notification after animation
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 1500);
-      
       // Remove element after animation
       setTimeout(() => {
         if (this.element && this.element.parentNode) {
@@ -223,12 +183,9 @@ export class PowerUp {
       eventBus.emit('sound:play', { sound: 'powerup-collect' });
     }
     
-    // Emit power-up collected event with details
-    eventBus.emit('powerup:collected', { 
-      playerId, 
-      type: this.type,
-      position: { x: this.x, y: this.y }
-    });
+    // Note: We no longer emit powerup:collected event here to avoid duplicate events
+    // The event is already emitted in the player.ts file when the player collects the powerup
+    // This prevents the counter from increasing by 2 instead of 1
   }
   
   // Check if power-up is at specific coordinates

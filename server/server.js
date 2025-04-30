@@ -338,13 +338,19 @@ io.on('connection', (socket) => {
   
   // Handle power-up collection
   socket.on('collect_powerup', (data) => {
-    if (!gameState.players[socket.id] || !gameState.powerups[data.powerupId]) return;
+    console.log('Player collected powerup:', data);
     
-    // Get power-up data
-    const powerup = gameState.powerups[data.powerupId];
+    // Check if we have the required data
+    if (!gameState.players[socket.id] || !data.x || !data.y) {
+      console.log('Missing required data for powerup collection');
+      return;
+    }
+    
+    // Get the powerup type from the data or use a default
+    const powerupType = data.powerupType || 'bomb';
     
     // Apply power-up effect to player
-    switch (powerup.type) {
+    switch (powerupType.toLowerCase()) {
       case 'bomb':
         gameState.players[socket.id].stats.bombCapacity += 1;
         break;
@@ -356,17 +362,16 @@ io.on('connection', (socket) => {
         break;
     }
     
-    // Remove power-up from game state
-    delete gameState.powerups[data.powerupId];
-    
     // Broadcast power-up collection to all players
     io.emit('powerup:collected', {
-      powerupId: data.powerupId,
       playerId: socket.id,
-      type: powerup.type,
-      x: powerup.x,
-      y: powerup.y
+      type: powerupType,
+      x: data.x,
+      y: data.y,
+      timestamp: Date.now()
     });
+    
+    console.log(`Broadcast powerup collection at (${data.x}, ${data.y}) by player ${socket.id}`);
   });
   
   // Handle chat messages
