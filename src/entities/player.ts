@@ -66,13 +66,21 @@ export class Player {
   // DOM container reference
   private gameContainer: HTMLElement | null = null;
   
+  // Player number (1-4) assigned by the server
+  private playerNumber: number = 1;
+  
   constructor(
     public id: string, 
     public nickname: string,
     startX: number = 0,
     startY: number = 0,
-    container?: HTMLElement
+    container?: HTMLElement,
+    playerNum?: number
   ) {
+    // Set player number if provided
+    if (playerNum) {
+      this.playerNumber = playerNum;
+    }
     this.x = startX;
     this.y = startY;
     
@@ -139,10 +147,21 @@ export class Player {
     playerEl.style.top = `${this.y * TILE_SIZE}px`;
     playerEl.style.width = `${TILE_SIZE}px`;
     playerEl.style.height = `${TILE_SIZE}px`;
-    playerEl.style.backgroundColor = this.isLocalPlayer() ? '#FF0000' : '#0000FF'; // Red for local, blue for remote
+    
+    // Set player color based on player number
+    const playerColors = [
+      '#FF5252', // Red (Player 1)
+      '#4CAF50', // Green (Player 2)
+      '#2196F3', // Blue (Player 3)
+      '#FFC107'  // Yellow (Player 4)
+    ];
+    const colorIndex = (this.playerNumber - 1) % playerColors.length;
+    const playerColor = playerColors[colorIndex];
+    
+    playerEl.style.backgroundColor = playerColor;
     playerEl.style.borderRadius = '50%';
     playerEl.style.zIndex = '1000';
-    playerEl.style.boxShadow = '0 0 15px 5px rgba(255,0,0,0.7)';
+    playerEl.style.boxShadow = `0 0 15px 5px ${playerColor}80`; // Add semi-transparent glow matching player color
     playerEl.style.border = '2px solid white';
     playerEl.style.boxSizing = 'border-box';
     playerEl.style.transition = 'left 0.1s, top 0.1s';
@@ -162,7 +181,7 @@ export class Player {
     
     // Add name tag
     const nameTag = document.createElement('div');
-    nameTag.textContent = this.isLocalPlayer() ? `${this.nickname} (You)` : this.nickname;
+    nameTag.textContent = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
     nameTag.style.position = 'absolute';
     nameTag.style.bottom = '100%';
     nameTag.style.left = '50%';
@@ -314,6 +333,11 @@ export class Player {
     const storedPlayerId = localStorage.getItem('playerId');
     console.log(`Checking if player ${this.id} is local player. Stored ID: ${storedPlayerId}`);
     return this.id === storedPlayerId;
+  }
+  
+  // Get player number
+  public getPlayerNumber(): number {
+    return this.playerNumber;
   }
   
   // Set up keyboard controls for the local player
@@ -890,8 +914,8 @@ export class Player {
     }, 2000);
   }
   
-  // Create explosion effect
-  private createExplosion(x: number, y: number, radius: number): void {
+  // Create explosion effect - public so it can be used for both local and remote bombs
+  public createExplosion(x: number, y: number, radius: number): void {
     if (!this.gameContainer) return;
     
     // Track which blocks have been destroyed to avoid duplicates
@@ -1149,12 +1173,22 @@ export class Player {
           blockEl.remove();
         }, 500);
         
-        // Emit block destroyed event
+        // Emit block destroyed event locally
         eventBus.emit('block:destroyed', {
           x: Math.floor(x),
           y: Math.floor(y),
           type: 'destructible'
         });
+        
+        // Only emit WebSocket events if this is the local player
+        if (this.isLocalPlayer()) {
+          // Send block destruction to server for synchronization
+          sendToServer(EVENTS.BLOCK_DESTROYED, {
+            x: Math.floor(x),
+            y: Math.floor(y),
+            type: 'destructible'
+          });
+        }
         
         // Wait for the block destruction animation to complete before spawning a power-up
         setTimeout(() => {

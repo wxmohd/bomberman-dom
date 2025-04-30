@@ -372,6 +372,21 @@ function addMessageToUI(message: ChatEventData): void {
   const isLocalUser = message.playerId === currentPlayerId || message.playerId === 'system';
   const isSystem = message.playerId === 'system';
   
+  // Get player number if available
+  let playerNumber = '';
+  if (!isSystem) {
+    if (isLocalUser) {
+      playerNumber = localStorage.getItem('playerNumber') || '';
+    } else if (message.playerNumber) {
+      playerNumber = message.playerNumber.toString();
+    }
+  }
+  
+  // Format player label
+  const playerLabel = isSystem ? 'System' : 
+    isLocalUser ? `You (P${playerNumber})` : 
+    playerNumber ? `${message.nickname} (P${playerNumber})` : message.nickname;
+  
   messageElement.style.cssText = `
     background-color: ${isSystem ? 'rgba(255, 204, 0, 0.2)' : isLocalUser ? 'rgba(76, 175, 80, 0.2)' : 'rgba(100, 181, 246, 0.2)'};
     padding: 8px 12px;
@@ -390,8 +405,8 @@ function addMessageToUI(message: ChatEventData): void {
   
   // Create message content with text alignment based on sender
   messageElement.innerHTML = `
-    <div style="font-weight: bold; color: ${isSystem ? '#ffcc00' : isLocalUser ? '#4CAF50' : '#64B5F6'}; margin-bottom: 3px; text-align: ${isLocalUser ? 'right' : 'left'};">
-      ${message.nickname}
+    <div style="font-weight: bold; color: ${isSystem ? '#ffcc00' : isLocalUser ? '#4CAF50' : '#64B5F6'}; margin-bottom: 3px; text-align: ${isLocalUser ? 'right' : 'left'}">
+      ${playerLabel}
       <span style="color: #aaa; font-size: 0.8em; margin-left: 5px; font-weight: normal;">${timestamp}</span>
     </div>
     <div style="color: #fff; text-align: ${isLocalUser ? 'right' : 'left'};">${message.message}</div>

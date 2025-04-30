@@ -2,7 +2,7 @@
 import { generateMap, resetMap } from './map';
 import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
-import { clearPowerUps } from './powerups';
+import { clearPowerUps, PowerUp, PowerUpType, getActivePowerUps } from './powerups';
 import { init as initHUD, resetPowerUps } from '../ui/hud';
 import { initLobby, playerStore } from './lobby';
 import { Player } from '../entities/player';
@@ -15,8 +15,18 @@ import { BombController } from './BombController';
 import { PLAYER_STARTING_POSITIONS } from './map';
 import { TILE_SIZE } from './constants';
 
+// Store player instances globally for access by event handlers
+declare global {
+  interface Window {
+    playerInstances: Player[];
+  }
+}
+
 // Map data storage
 let currentMapData: any = null;
+
+// Initialize player instances array
+window.playerInstances = window.playerInstances || [];
 
 // Function to create player directly with DOM manipulation as fallback
 function createPlayerDirectly(container: HTMLElement, id: string, nickname: string, x: number, y: number): void {
@@ -222,27 +232,43 @@ function startGame(container: HTMLElement, gameData?: any) {
   // Get player data from the store
   const { players } = playerStore.getState();
   
-  // IMPORTANT: Always use the first player as the local player for simplicity
-  // This ensures consistent behavior in single-player mode
-  if (players.length > 0) {
+  // Get the socket ID from the socket connection
+  const socketId = localStorage.getItem('socketId');
+  console.log(`Current socket ID: ${socketId}`);
+  
+  // Find the player that matches the socket ID
+  const localPlayer = players.find(player => player.id === socketId);
+  
+  // If we found a matching player, use that as the local player
+  if (localPlayer) {
+    localStorage.setItem('playerId', localPlayer.id);
+    console.log(`Setting local player ID to match socket: ${localPlayer.id}`);
+  } else if (players.length > 0) {
+    // Fallback: use the first player if no match found
     localStorage.setItem('playerId', players[0].id);
-    console.log(`Setting local player ID to first player: ${players[0].id}`);
+    console.log(`No matching player found, using first player: ${players[0].id}`);
   } else {
     console.error('No players available!');
   }
   
-  // Get the current player from the players list (should be the first player)
-  const currentPlayer = players.length > 0 ? players[0] : null;
+  // Get the current player based on the socket ID
+  const currentPlayer = localPlayer || (players.length > 0 ? players[0] : null);
   
   // Double-check that the player ID is set correctly
   if (currentPlayer) {
-    // Force the ID to match the first player
+    // Store the player ID in localStorage
     localStorage.setItem('playerId', currentPlayer.id);
     console.log(`Confirmed player ID in localStorage: ${currentPlayer.id}`);
     
     // Also store in session storage as a backup
     sessionStorage.setItem('playerId', currentPlayer.id);
     console.log(`Also stored in sessionStorage: ${currentPlayer.id}`);
+    
+    // Store the player number
+    if (currentPlayer.playerNumber) {
+      localStorage.setItem('playerNumber', currentPlayer.playerNumber.toString());
+      console.log(`Stored player number: ${currentPlayer.playerNumber}`);
+    }
   } else {
     console.error('No current player found!');
   }
@@ -310,8 +336,9 @@ function startGame(container: HTMLElement, gameData?: any) {
   `;
   
   if (currentPlayer) {
+    const playerNumber = currentPlayer.playerNumber || 1;
     playerInfo.innerHTML = `
-      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname}</div>
+      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname} (P${playerNumber})</div>
       <div style="width: 20px; height: 20px; background-color: ${currentPlayer.color}; border-radius: 50%; display: inline-block; margin-right: 5px;"></div>
     `;
   }
@@ -374,12 +401,23 @@ function startGame(container: HTMLElement, gameData?: any) {
   if (mapContainerElement) {
     // First, create all players using direct DOM approach for reliability
     players.forEach((playerData, index) => {
-      const isLocalPlayer = playerData.id === localStorage.getItem('playerId');
-      const pos = isLocalPlayer ? 
-        PLAYER_STARTING_POSITIONS[0] : // Use first position for local player
-        PLAYER_STARTING_POSITIONS[(index) % PLAYER_STARTING_POSITIONS.length];
+      // Get player number from player data or use index+1 as fallback
+      const playerNumber = playerData.playerNumber || index + 1;
       
-      console.log(`Creating ${isLocalPlayer ? 'local' : 'remote'} player: ${playerData.nickname} at position: ${pos.x},${pos.y}`);
+      // Check if this is the local player by comparing socket ID
+      const isLocalPlayer = playerData.id === localStorage.getItem('playerId');
+      
+      // If this is the local player, store the player number
+      if (isLocalPlayer) {
+        localStorage.setItem('playerNumber', playerNumber.toString());
+        console.log(`Setting local player number to ${playerNumber}`);
+      }
+      
+      // Use the player's assigned position based on player number
+      const posIndex = (playerNumber - 1) % PLAYER_STARTING_POSITIONS.length;
+      const pos = PLAYER_STARTING_POSITIONS[posIndex];
+      
+      console.log(`Creating ${isLocalPlayer ? 'local' : 'remote'} player: ${playerData.nickname} (Player ${playerNumber}) at position: ${pos.x},${pos.y}`);
       
       // Create with direct DOM first to ensure visibility
       createPlayerDirectly(mapContainerElement, playerData.id, playerData.nickname, pos.x, pos.y);
@@ -391,9 +429,13 @@ function startGame(container: HTMLElement, gameData?: any) {
           playerData.nickname,
           pos.x,
           pos.y,
-          mapContainerElement
+          mapContainerElement,
+          playerNumber
         );
-        console.log(`Created player instance: ${player.nickname}`);
+        console.log(`Created player instance: ${player.nickname} (Player ${playerNumber})`);
+        
+        // Store player instance in global array for later access
+        window.playerInstances.push(player);
       } catch (error) {
         console.error(`Error creating player ${playerData.nickname} with Player class:`, error);
       }
@@ -428,7 +470,280 @@ function startGame(container: HTMLElement, gameData?: any) {
     currentPlayer
   });
   
-  console.log('Map generated with players:', players);
+  // Set up event listeners for remote player movements
+  eventBus.on('remote:player:moved', (data) => {
+    console.log('Remote player movement:', data);
+    
+    // Skip if this is the local player's movement
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Find the player element
+    const playerElement = document.getElementById(`player-${data.playerId}`);
+    if (!playerElement) {
+      console.error(`Player element not found for ID: ${data.playerId}`);
+      return;
+    }
+    
+    // Update player position
+    playerElement.style.left = `${data.x * TILE_SIZE}px`;
+    playerElement.style.top = `${data.y * TILE_SIZE}px`;
+    
+    console.log(`Updated remote player ${data.playerId} position to ${data.x},${data.y}`);
+  });
+  
+  // Handle remote bomb placements
+  eventBus.on('remote:bomb:dropped', (data) => {
+    console.log('Remote bomb placement:', data);
+    
+    // Skip if this is the local player's bomb
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote bomb placement');
+      return;
+    }
+    
+    // Create bomb element
+    const bomb = document.createElement('div');
+    bomb.className = 'bomb';
+    bomb.id = data.bombId || `bomb_${Date.now()}`;
+    bomb.style.cssText = `
+      position: absolute;
+      left: ${data.x * TILE_SIZE}px;
+      top: ${data.y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-color: black;
+      border-radius: 50%;
+      z-index: 800;
+      animation: bomb-pulse 0.5s infinite alternate;
+      border: 2px solid white;
+      box-sizing: border-box;
+    `;
+    
+    // Add a fuse to make the bomb more visible
+    const fuse = document.createElement('div');
+    fuse.style.cssText = `
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 10px;
+      background-color: #FF4500;
+      z-index: 801;
+    `;
+    bomb.appendChild(fuse);
+    
+    // Add bomb to the container
+    mapContainer.appendChild(bomb);
+    
+    console.log(`Created remote bomb at ${data.x},${data.y} with range ${data.explosionRange}`);
+    
+    // Remove bomb after 2 seconds (matching server timeout)
+    setTimeout(() => {
+      bomb.remove();
+    }, 2000);
+  });
+  
+  // Handle remote bomb explosions
+  eventBus.on('remote:bomb:explode', (data) => {
+    console.log('Remote bomb explosion:', data);
+    
+    // Skip if this is the local player's bomb (it will be handled by the local player's code)
+    if (data.ownerId === localStorage.getItem('playerId')) {
+      console.log('Skipping local player bomb explosion');
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote bomb explosion');
+      return;
+    }
+    
+    console.log('Creating remote explosion with data:', data);
+    
+    // ALWAYS create the explosion directly - this is the most reliable approach
+    // Create center explosion
+    const centerExplosion = document.createElement('div');
+    centerExplosion.className = 'explosion center';
+    centerExplosion.style.cssText = `
+      position: absolute;
+      left: ${data.x * TILE_SIZE}px;
+      top: ${data.y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-color: yellow;
+      border-radius: 50%;
+      z-index: 900;
+      animation: explosion 0.5s forwards;
+    `;
+    mapContainer.appendChild(centerExplosion);
+    
+    // Remove explosion after animation
+    setTimeout(() => {
+      centerExplosion.remove();
+    }, 500);
+    
+    // Create explosion in four directions
+    const directions = [
+      { dx: 0, dy: -1, name: 'up' },    // Up
+      { dx: 1, dy: 0, name: 'right' },  // Right
+      { dx: 0, dy: 1, name: 'down' },   // Down
+      { dx: -1, dy: 0, name: 'left' }   // Left
+    ];
+    
+    // For each direction, create explosion blocks up to the radius
+    directions.forEach(dir => {
+      for (let i = 1; i <= data.explosionRange; i++) {
+        const explosionX = data.x + (dir.dx * i);
+        const explosionY = data.y + (dir.dy * i);
+        
+        // Check if this position is valid for explosion
+        if (explosionX % 2 === 0 && explosionY % 2 === 0) {
+          break; // Wall at even coordinates
+        }
+        
+        // Can't explode through border walls
+        if (explosionX === 0 || explosionY === 0 || explosionX === 14 || explosionY === 14) {
+          break;
+        }
+        
+        // Create explosion element
+        const explosion = document.createElement('div');
+        explosion.className = `explosion ${dir.name}`;
+        explosion.style.cssText = `
+          position: absolute;
+          left: ${explosionX * TILE_SIZE}px;
+          top: ${explosionY * TILE_SIZE}px;
+          width: ${TILE_SIZE}px;
+          height: ${TILE_SIZE}px;
+          background-color: orange;
+          z-index: 40;
+          animation: explosion 0.5s forwards;
+        `;
+        
+        mapContainer.appendChild(explosion);
+        
+        // Remove explosion after animation
+        setTimeout(() => {
+          explosion.remove();
+        }, 500);
+      }
+    });
+    
+    // Ensure explosion styles are added to document
+    ensureExplosionStyles();
+    
+    // We don't need to handle block destruction here
+    // Block destruction is handled by the 'remote:block:destroyed' event
+  });
+  
+  // We'll handle power-ups using the local logic only, no remote handler needed
+  
+  // Handle remote block destruction
+  eventBus.on('remote:block:destroyed', (data) => {
+    console.log('Remote block destruction:', data);
+    
+    // Skip if this is the local player's block destruction (it will be handled locally)
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote block destruction');
+      return;
+    }
+    
+    // Find the block at the specified coordinates
+    const blocks = Array.from(document.querySelectorAll('.block')).filter(el => {
+      const block = el as HTMLElement;
+      const blockX = parseInt(block.style.left) / TILE_SIZE;
+      const blockY = parseInt(block.style.top) / TILE_SIZE;
+      
+      return Math.floor(blockX) === data.x && Math.floor(blockY) === data.y;
+    });
+    
+    if (blocks.length > 0) {
+      // Process each block at this position
+      blocks.forEach(block => {
+        const blockEl = block as HTMLElement;
+        
+        // Animate block destruction
+        blockEl.style.animation = 'block-destroy 0.5s forwards';
+        
+        // Create a green space where the block was
+        const greenSpace = document.createElement('div');
+        greenSpace.className = 'green-space';
+        greenSpace.style.position = 'absolute';
+        greenSpace.style.left = blockEl.style.left;
+        greenSpace.style.top = blockEl.style.top;
+        greenSpace.style.width = `${TILE_SIZE}px`;
+        greenSpace.style.height = `${TILE_SIZE}px`;
+        greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
+        greenSpace.style.zIndex = '5'; // Below player but above background
+        
+        // Add green space to the game container
+        if (mapContainer) {
+          mapContainer.appendChild(greenSpace);
+        }
+        
+        // Remove block after animation
+        setTimeout(() => {
+          blockEl.remove();
+        }, 500);
+      });
+    } else {
+      console.warn(`No block found at remote destruction coordinates: ${data.x},${data.y}`);
+    }
+  });
+  
+  // Ensure explosion styles are added to the document
+  function ensureExplosionStyles(): void {
+    if (!document.getElementById('explosion-animations')) {
+      const style = document.createElement('style');
+      style.id = 'explosion-animations';
+      style.textContent = `
+        @keyframes explosion {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.2); opacity: 1; }
+          100% { transform: scale(1); opacity: 0; }
+        }
+        
+        @keyframes block-destroy {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.2); opacity: 0.7; }
+          100% { transform: scale(0); opacity: 0; }
+        }
+        
+        @keyframes green-space-appear {
+          0% { transform: scale(0); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .explosion {
+          pointer-events: none;
+        }
+        
+        .green-space {
+          animation: green-space-appear 0.3s forwards;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+  
+  console.log('Map generated successfully');
 }
 
 // Reset the game

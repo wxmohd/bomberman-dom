@@ -203,15 +203,29 @@ export function destroyBlock(mapData: MapData, x: number, y: number, fromExplosi
           }
         }, 300); // Match the animation duration
         
-        // Maybe spawn a powerup
-        const powerup = maybeSpawnPowerup(x, y);
-        
         // Emit block destroyed event with additional data
         eventBus.emit('block:destroyed', { 
           x, 
           y, 
-          fromExplosion,
-          powerupSpawned: powerup !== null
+          fromExplosion
+        });
+        
+        // In multiplayer, we'll let the server decide if a power-up should spawn
+        // This ensures all clients see the same power-ups
+        import('../multiplayer/socket').then(module => {
+          const isConnected = module.isConnectedToServer();
+          if (isConnected) {
+            // We're in multiplayer mode, let the server handle power-up spawning
+            console.log('In multiplayer mode, server will handle power-up spawning');
+          } else {
+            // In single-player mode, spawn power-ups locally
+            console.log('In single-player mode, spawning power-up locally');
+            maybeSpawnPowerup(x, y);
+          }
+        }).catch(err => {
+          console.error('Error checking multiplayer status:', err);
+          // Fallback to local power-up spawning
+          maybeSpawnPowerup(x, y);
         });
         
         return true;
