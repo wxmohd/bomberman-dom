@@ -217,6 +217,7 @@ export function destroyBlock(mapData: MapData, x: number, y: number, fromExplosi
           if (isConnected) {
             // We're in multiplayer mode, let the server handle power-up spawning
             console.log('In multiplayer mode, server will handle power-up spawning');
+            // Do NOT spawn powerups locally in multiplayer mode
           } else {
             // In single-player mode, spawn power-ups locally
             console.log('In single-player mode, spawning power-up locally');
@@ -224,7 +225,9 @@ export function destroyBlock(mapData: MapData, x: number, y: number, fromExplosi
           }
         }).catch(err => {
           console.error('Error checking multiplayer status:', err);
-          // Fallback to local power-up spawning
+          // Only spawn locally if we can't determine multiplayer status
+          // This reduces the chance of duplicate powerups
+          console.log('Unable to determine multiplayer status, assuming single-player mode');
           maybeSpawnPowerup(x, y);
         });
         
