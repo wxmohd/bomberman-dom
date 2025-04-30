@@ -198,6 +198,73 @@ function setupEventListeners(): void {
     });
   });
   
+  // Remote powerup spawned - update game state
+  socket.on('powerup:spawned', (data: { x: number, y: number, type: string }) => {
+    console.log('Received powerup:spawned event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:spawned', data);
+    
+    // Also directly call the powerup spawning function to ensure it's created
+    import('./game/powerups').then(powerupModule => {
+      // Convert server powerup type to local enum
+      let powerupType;
+      switch (data.type) {
+        case 'BOMB':
+          powerupType = powerupModule.PowerUpType.BOMB;
+          break;
+        case 'FLAME':
+          powerupType = powerupModule.PowerUpType.FLAME;
+          break;
+        case 'SPEED':
+          powerupType = powerupModule.PowerUpType.SPEED;
+          break;
+        default:
+          powerupType = powerupModule.PowerUpType.BOMB; // Default fallback
+      }
+      
+      // Create a new powerup at the specified location
+      const powerup = new powerupModule.PowerUp(data.x, data.y, powerupType);
+      
+      // Get the map container and render the powerup
+      import('./game/renderer').then(rendererModule => {
+        const container = rendererModule.getMapContainer();
+        if (container) {
+          powerup.render(container);
+          console.log(`Rendered remote powerup at (${data.x}, ${data.y}) with type ${data.type}`);
+        }
+      });
+    }).catch(error => {
+      console.error('Failed to spawn remote powerup:', error);
+    });
+  });
+  
+  // Remote powerup collected - update game state
+  socket.on('powerup:collected', (data: { powerupId: string, playerId: string, type: string, x: number, y: number }) => {
+    console.log('Received powerup:collected event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:collected', data);
+    
+    // Also directly handle the powerup collection to ensure it's removed
+    import('./game/powerups').then(powerupModule => {
+      // Find and remove the powerup at this position
+      const activePowerUps = powerupModule.getActivePowerUps();
+      const powerupIndex = activePowerUps.findIndex(p => p.isAt(data.x, data.y));
+      
+      if (powerupIndex !== -1) {
+        const powerup = activePowerUps[powerupIndex];
+        console.log(`Found powerup to collect at (${data.x}, ${data.y})`);
+        
+        // Collect the powerup
+        powerup.collect(data.playerId);
+        console.log(`Remote powerup collected by player ${data.playerId}`);
+      } else {
+        console.log(`No powerup found at position (${data.x}, ${data.y}) to collect`);
+      }
+    }).catch(error => {
+      console.error('Failed to handle remote powerup collection:', error);
+    });
+  });
+  
   // Player joined event
   eventBus.on('player:joined', (data: { id: string, nickname: string }) => {
     // Add system message

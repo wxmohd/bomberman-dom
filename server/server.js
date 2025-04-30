@@ -307,8 +307,8 @@ io.on('connection', (socket) => {
       playerId: socket.id
     });
     
-    // Determine if a power-up should spawn (15% chance)
-    const POWERUP_CHANCE = 0.15;
+    // Determine if a power-up should spawn (5% chance - reduced to make powerups more rare)
+    const POWERUP_CHANCE = 0.02;
     if (Math.random() < POWERUP_CHANCE) {
       // Determine power-up type with weighted probability
       // Bomb: 40%, Flame: 30%, Speed: 30%

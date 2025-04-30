@@ -261,8 +261,8 @@ export function clearPowerUps(): void {
 
 // Spawn a power-up with a chance
 export function maybeSpawnPowerup(x: number, y: number): PowerUp | null {
-  // 15% chance to spawn a power-up (reduced to make them more rare)
-  const POWERUP_CHANCE = 0.15;
+  // 2% chance to spawn a power-up (significantly reduced to make them very rare)
+  const POWERUP_CHANCE = 0.02;
   
   // Check if there's already a power-up at this position
   const existingPowerup = activePowerUps.find(p => p.isAt(x, y));
@@ -356,5 +356,62 @@ export function checkAndCollectPowerUp(x: number, y: number, playerId: string): 
 
 // Render all active power-ups
 export function renderPowerUps(container: HTMLElement): void {
-  activePowerUps.forEach(powerup => powerup.render(container));
+  activePowerUps.forEach(powerUp => powerUp.render(container));
+}
+
+// Initialize powerup system with websocket support
+export function initPowerupSystem(): void {
+  // Setup event listeners for websocket events
+  setupPowerupEventListeners();
+  
+  console.log('Powerup system initialized with websocket support');
+}
+
+// Setup event listeners for powerup websocket events
+function setupPowerupEventListeners(): void {
+  // Listen for remote powerup spawned events
+  eventBus.on('remote:powerup:spawned', (data: { x: number, y: number, type: string }) => {
+    console.log(`Remote powerup spawned at (${data.x}, ${data.y}) with type ${data.type}`);
+    
+    // Convert server powerup type to local enum
+    let powerupType: PowerUpType;
+    switch (data.type) {
+      case 'BOMB':
+        powerupType = PowerUpType.BOMB;
+        break;
+      case 'FLAME':
+        powerupType = PowerUpType.FLAME;
+        break;
+      case 'SPEED':
+        powerupType = PowerUpType.SPEED;
+        break;
+      default:
+        powerupType = PowerUpType.BOMB; // Default fallback
+    }
+    
+    // Check if there's already a powerup at this position
+    const existingPowerup = activePowerUps.find(p => p.isAt(data.x, data.y));
+    if (existingPowerup) return;
+    
+    // Create and add the powerup
+    const powerup = new PowerUp(data.x, data.y, powerupType);
+    activePowerUps.push(powerup);
+  });
+  
+  // Listen for remote powerup collected events
+  eventBus.on('remote:powerup:collected', (data: { x: number, y: number, playerId: string }) => {
+    console.log(`Remote powerup collected at (${data.x}, ${data.y}) by player ${data.playerId}`);
+    
+    // Find the powerup at this position
+    const powerupIndex = activePowerUps.findIndex(p => p.isAt(data.x, data.y));
+    if (powerupIndex !== -1) {
+      const powerup = activePowerUps[powerupIndex];
+      
+      // Collect the powerup
+      powerup.collect(data.playerId);
+      
+      // Remove from active powerups
+      activePowerUps.splice(powerupIndex, 1);
+    }
+  });
 }

@@ -348,6 +348,18 @@ function startGame(container: HTMLElement, gameData?: any) {
   // Initialize game HUD
   initHUD();
   
+  // Initialize powerup system with websocket support
+  import('./powerups').then(powerupModule => {
+    if (powerupModule.initPowerupSystem) {
+      powerupModule.initPowerupSystem();
+      console.log('Powerup system initialized with websocket support');
+    } else {
+      console.error('initPowerupSystem function not found in powerups module');
+    }
+  }).catch(error => {
+    console.error('Failed to initialize powerup system:', error);
+  });
+  
   // Generate map with seed from server if available
   if (gameData && gameData.mapSeed) {
     console.log(`Using server-provided map seed: ${gameData.mapSeed}`);
