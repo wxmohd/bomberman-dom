@@ -176,6 +176,75 @@ function setupGameEventListeners(): void {
     eventBus.emit('remote:bomb:dropped', data);
   });
   
+  // Bomb explosion event
+  socket.on(EVENTS.BOMB_EXPLODE, (data) => {
+    console.log('Received bomb explosion from server:', data);
+    // Make sure we have all required data for the explosion
+    if (!data.x || !data.y || !data.explosionRange) {
+      console.error('Missing required data for bomb explosion:', data);
+      return;
+    }
+    // Forward the complete data to the event bus
+    eventBus.emit('remote:bomb:explode', data);
+  });
+  
+  // Block destroyed event
+  socket.on(EVENTS.BLOCK_DESTROYED, (data) => {
+    console.log('Received block destruction:', data);
+    eventBus.emit('remote:block:destroyed', data);
+  });
+  
+  // Power-up spawned event
+  socket.on(EVENTS.POWERUP_SPAWNED, (data) => {
+    console.log('Received power-up spawn from server:', data);
+    
+    // Make sure we have all required data
+    if (data.x === undefined || data.y === undefined || !data.type) {
+      console.error('Missing required data for power-up spawn:', data);
+      return;
+    }
+    
+    // Create the power-up directly using the PowerUp class
+    import('../game/powerups').then(({ PowerUp, PowerUpType, getActivePowerUps }) => {
+      // Check if there's already a power-up at this position
+      const existingPowerups = getActivePowerUps();
+      const existingPowerup = existingPowerups.find(p => p.isAt(data.x, data.y));
+      if (existingPowerup) {
+        console.log('Power-up already exists at this position, skipping creation');
+        return;
+      }
+      
+      // Convert string type to PowerUpType enum
+      let powerupType;
+      switch (data.type.toUpperCase()) {
+        case 'BOMB':
+          powerupType = PowerUpType.BOMB;
+          break;
+        case 'FLAME':
+          powerupType = PowerUpType.FLAME;
+          break;
+        case 'SPEED':
+          powerupType = PowerUpType.SPEED;
+          break;
+        default:
+          console.error(`Unknown power-up type: ${data.type}`);
+          return;
+      }
+      
+      // Create the power-up directly
+      const powerup = new PowerUp(data.x, data.y, powerupType);
+      
+      // Render the power-up
+      import('../game/renderer').then(({ getMapContainer }) => {
+        const mapContainer = getMapContainer();
+        if (mapContainer) {
+          powerup.render(mapContainer);
+          console.log(`Created power-up from server at (${data.x}, ${data.y}) of type ${powerupType}`);
+        }
+      });
+    });
+  });
+  
   // Handle player number assignment
   socket.on(EVENTS.PLAYER_NUMBER, (data) => {
     console.log('Received player number:', data);
@@ -263,7 +332,8 @@ export function getSocketId(): string | null {
 
 /**
  * Get the socket instance
+ * @returns The current socket instance or null if not connected
  */
-export function getSocket(): any {
+export function getSocket(): Socket | null {
   return socket;
 }

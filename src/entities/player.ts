@@ -914,8 +914,8 @@ export class Player {
     }, 2000);
   }
   
-  // Create explosion effect
-  private createExplosion(x: number, y: number, radius: number): void {
+  // Create explosion effect - public so it can be used for both local and remote bombs
+  public createExplosion(x: number, y: number, radius: number): void {
     if (!this.gameContainer) return;
     
     // Track which blocks have been destroyed to avoid duplicates
@@ -1173,12 +1173,22 @@ export class Player {
           blockEl.remove();
         }, 500);
         
-        // Emit block destroyed event
+        // Emit block destroyed event locally
         eventBus.emit('block:destroyed', {
           x: Math.floor(x),
           y: Math.floor(y),
           type: 'destructible'
         });
+        
+        // Only emit WebSocket events if this is the local player
+        if (this.isLocalPlayer()) {
+          // Send block destruction to server for synchronization
+          sendToServer(EVENTS.BLOCK_DESTROYED, {
+            x: Math.floor(x),
+            y: Math.floor(y),
+            type: 'destructible'
+          });
+        }
         
         // Wait for the block destruction animation to complete before spawning a power-up
         setTimeout(() => {

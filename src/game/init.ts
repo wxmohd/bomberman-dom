@@ -2,7 +2,7 @@
 import { generateMap, resetMap } from './map';
 import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
-import { clearPowerUps } from './powerups';
+import { clearPowerUps, PowerUp, PowerUpType, getActivePowerUps } from './powerups';
 import { init as initHUD, resetPowerUps } from '../ui/hud';
 import { initLobby, playerStore } from './lobby';
 import { Player } from '../entities/player';
@@ -15,8 +15,18 @@ import { BombController } from './BombController';
 import { PLAYER_STARTING_POSITIONS } from './map';
 import { TILE_SIZE } from './constants';
 
+// Store player instances globally for access by event handlers
+declare global {
+  interface Window {
+    playerInstances: Player[];
+  }
+}
+
 // Map data storage
 let currentMapData: any = null;
+
+// Initialize player instances array
+window.playerInstances = window.playerInstances || [];
 
 // Function to create player directly with DOM manipulation as fallback
 function createPlayerDirectly(container: HTMLElement, id: string, nickname: string, x: number, y: number): void {
@@ -423,6 +433,9 @@ function startGame(container: HTMLElement, gameData?: any) {
           playerNumber
         );
         console.log(`Created player instance: ${player.nickname} (Player ${playerNumber})`);
+        
+        // Store player instance in global array for later access
+        window.playerInstances.push(player);
       } catch (error) {
         console.error(`Error creating player ${playerData.nickname} with Player class:`, error);
       }
@@ -539,7 +552,198 @@ function startGame(container: HTMLElement, gameData?: any) {
     }, 2000);
   });
   
-  console.log('Map generated with players:', players);
+  // Handle remote bomb explosions
+  eventBus.on('remote:bomb:explode', (data) => {
+    console.log('Remote bomb explosion:', data);
+    
+    // Skip if this is the local player's bomb (it will be handled by the local player's code)
+    if (data.ownerId === localStorage.getItem('playerId')) {
+      console.log('Skipping local player bomb explosion');
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote bomb explosion');
+      return;
+    }
+    
+    console.log('Creating remote explosion with data:', data);
+    
+    // ALWAYS create the explosion directly - this is the most reliable approach
+    // Create center explosion
+    const centerExplosion = document.createElement('div');
+    centerExplosion.className = 'explosion center';
+    centerExplosion.style.cssText = `
+      position: absolute;
+      left: ${data.x * TILE_SIZE}px;
+      top: ${data.y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-color: yellow;
+      border-radius: 50%;
+      z-index: 900;
+      animation: explosion 0.5s forwards;
+    `;
+    mapContainer.appendChild(centerExplosion);
+    
+    // Remove explosion after animation
+    setTimeout(() => {
+      centerExplosion.remove();
+    }, 500);
+    
+    // Create explosion in four directions
+    const directions = [
+      { dx: 0, dy: -1, name: 'up' },    // Up
+      { dx: 1, dy: 0, name: 'right' },  // Right
+      { dx: 0, dy: 1, name: 'down' },   // Down
+      { dx: -1, dy: 0, name: 'left' }   // Left
+    ];
+    
+    // For each direction, create explosion blocks up to the radius
+    directions.forEach(dir => {
+      for (let i = 1; i <= data.explosionRange; i++) {
+        const explosionX = data.x + (dir.dx * i);
+        const explosionY = data.y + (dir.dy * i);
+        
+        // Check if this position is valid for explosion
+        if (explosionX % 2 === 0 && explosionY % 2 === 0) {
+          break; // Wall at even coordinates
+        }
+        
+        // Can't explode through border walls
+        if (explosionX === 0 || explosionY === 0 || explosionX === 14 || explosionY === 14) {
+          break;
+        }
+        
+        // Create explosion element
+        const explosion = document.createElement('div');
+        explosion.className = `explosion ${dir.name}`;
+        explosion.style.cssText = `
+          position: absolute;
+          left: ${explosionX * TILE_SIZE}px;
+          top: ${explosionY * TILE_SIZE}px;
+          width: ${TILE_SIZE}px;
+          height: ${TILE_SIZE}px;
+          background-color: orange;
+          z-index: 40;
+          animation: explosion 0.5s forwards;
+        `;
+        
+        mapContainer.appendChild(explosion);
+        
+        // Remove explosion after animation
+        setTimeout(() => {
+          explosion.remove();
+        }, 500);
+      }
+    });
+    
+    // Ensure explosion styles are added to document
+    ensureExplosionStyles();
+    
+    // We don't need to handle block destruction here
+    // Block destruction is handled by the 'remote:block:destroyed' event
+  });
+  
+  // We'll handle power-ups using the local logic only, no remote handler needed
+  
+  // Handle remote block destruction
+  eventBus.on('remote:block:destroyed', (data) => {
+    console.log('Remote block destruction:', data);
+    
+    // Skip if this is the local player's block destruction (it will be handled locally)
+    if (data.playerId === localStorage.getItem('playerId')) {
+      return;
+    }
+    
+    // Get map container
+    const mapContainer = getMapContainer();
+    if (!mapContainer) {
+      console.error('Map container not found for remote block destruction');
+      return;
+    }
+    
+    // Find the block at the specified coordinates
+    const blocks = Array.from(document.querySelectorAll('.block')).filter(el => {
+      const block = el as HTMLElement;
+      const blockX = parseInt(block.style.left) / TILE_SIZE;
+      const blockY = parseInt(block.style.top) / TILE_SIZE;
+      
+      return Math.floor(blockX) === data.x && Math.floor(blockY) === data.y;
+    });
+    
+    if (blocks.length > 0) {
+      // Process each block at this position
+      blocks.forEach(block => {
+        const blockEl = block as HTMLElement;
+        
+        // Animate block destruction
+        blockEl.style.animation = 'block-destroy 0.5s forwards';
+        
+        // Create a green space where the block was
+        const greenSpace = document.createElement('div');
+        greenSpace.className = 'green-space';
+        greenSpace.style.position = 'absolute';
+        greenSpace.style.left = blockEl.style.left;
+        greenSpace.style.top = blockEl.style.top;
+        greenSpace.style.width = `${TILE_SIZE}px`;
+        greenSpace.style.height = `${TILE_SIZE}px`;
+        greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
+        greenSpace.style.zIndex = '5'; // Below player but above background
+        
+        // Add green space to the game container
+        if (mapContainer) {
+          mapContainer.appendChild(greenSpace);
+        }
+        
+        // Remove block after animation
+        setTimeout(() => {
+          blockEl.remove();
+        }, 500);
+      });
+    } else {
+      console.warn(`No block found at remote destruction coordinates: ${data.x},${data.y}`);
+    }
+  });
+  
+  // Ensure explosion styles are added to the document
+  function ensureExplosionStyles(): void {
+    if (!document.getElementById('explosion-animations')) {
+      const style = document.createElement('style');
+      style.id = 'explosion-animations';
+      style.textContent = `
+        @keyframes explosion {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.2); opacity: 1; }
+          100% { transform: scale(1); opacity: 0; }
+        }
+        
+        @keyframes block-destroy {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.2); opacity: 0.7; }
+          100% { transform: scale(0); opacity: 0; }
+        }
+        
+        @keyframes green-space-appear {
+          0% { transform: scale(0); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .explosion {
+          pointer-events: none;
+        }
+        
+        .green-space {
+          animation: green-space-appear 0.3s forwards;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+  
+  console.log('Map generated successfully');
 }
 
 // Reset the game

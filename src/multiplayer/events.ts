@@ -16,6 +16,9 @@ export const EVENTS = {
   // Game events
   MOVE: 'move',
   DROP_BOMB: 'drop_bomb',
+  BOMB_EXPLODE: 'bomb:explode',
+  BLOCK_DESTROYED: 'block:destroyed',
+  POWERUP_SPAWNED: 'powerup:spawned',
   COLLECT_POWERUP: 'collect_powerup',
   PLAYER_HIT: 'player_hit',
   PLAYER_ELIMINATED: 'player_eliminated',
@@ -26,88 +29,52 @@ export const EVENTS = {
   // Chat events
   CHAT: 'chat',
   
-  // Player identification events
+  // Player events
   PLAYER_NUMBER: 'player:number',
+  PLAYER_JOINED: 'player:joined',
+  PLAYER_LEFT: 'player:left'
 };
 
-// Player data interface
+// Event data interfaces
+export interface PowerUpSpawnedEventData {
+  x: number;
+  y: number;
+  type: string;
+  timestamp: number;
+}
+
+export interface MoveEventData {
+  x: number;
+  y: number;
+  direction: any; // Using 'any' to support both string and Direction enum
+  playerId?: string;
+}
+
+export interface DropBombEventData {
+  x: number;
+  y: number;
+  explosionRange?: number;
+  playerId?: string;
+}
+
+export interface CollectPowerupEventData {
+  powerupId: string;
+  playerId?: string;
+  powerupType?: string;
+  x?: number;
+  y?: number;
+}
+
 export interface PlayerData {
   id: string;
   nickname: string;
-  isReady?: boolean;
-  color?: string;
-  playerNumber?: number;
+  isReady: boolean;
+  color: string;
+  playerNumber: number;
 }
 
-// Lobby data interface
 export interface LobbyData {
   players: PlayerData[];
   maxPlayers: number;
   gameInProgress: boolean;
-}
-
-// Game state interface
-export interface GameStateData {
-  players: PlayerData[];
-  gameStarted: boolean;
-  gameOver: boolean;
-  winner?: PlayerData;
-}
-
-// Join event data
-export interface JoinEventData {
-  nickname: string;
-}
-
-// Lobby update event data
-export interface LobbyUpdateEventData {
-  lobby: LobbyData;
-}
-
-// Player ready event data
-export interface PlayerReadyEventData {
-  playerId: string;
-  isReady: boolean;
-}
-
-// Game start event data
-export interface GameStartEventData {
-  players: PlayerData[];
-  mapSeed?: number;
-}
-
-// Move event data
-export interface MoveEventData {
-  playerId: string;
-  x: number;
-  y: number;
-  direction: number;
-}
-
-// Drop bomb event data
-export interface DropBombEventData {
-  playerId: string;
-  x: number;
-  y: number;
-  explosionRange: number;
-}
-
-// Collect powerup event data
-export interface CollectPowerupEventData {
-  playerId: string;
-  powerupId: string;
-  powerupType: string;
-  x: number;
-  y: number;
-}
-
-// Chat event data
-export interface ChatEventData {
-  playerId: string;
-  nickname: string;
-  message: string;
-  timestamp: number;
-  isSystem?: boolean;
-  playerNumber?: number;
-  isLocalPlayer?: boolean;
 }

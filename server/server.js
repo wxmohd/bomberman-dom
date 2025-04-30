@@ -266,7 +266,6 @@ io.on('connection', (socket) => {
       bombId,
       playerId: socket.id,
       x: data.x,
-      y: data.y,
       explosionRange: gameState.bombs[bombId].explosionRange,
       nickname: gameState.players[socket.id].nickname
     });
@@ -276,7 +275,15 @@ io.on('connection', (socket) => {
       // Remove bomb from game state
       delete gameState.bombs[bombId];
       
-      // Broadcast bomb explosion
+      // Broadcast bomb explosion with complete and consistent data
+      console.log('Server broadcasting bomb explosion:', {
+        bombId,
+        ownerId: socket.id,
+        x: data.x,
+        y: data.y,
+        explosionRange: data.explosionRange || gameState.players[socket.id].stats.explosionRange
+      });
+      
       io.emit('bomb:explode', {
         bombId,
         ownerId: socket.id,
@@ -286,6 +293,47 @@ io.on('connection', (socket) => {
         nickname: gameState.players[socket.id].nickname
       });
     }, 2000);
+  });
+  
+  // Handle block destruction event
+  socket.on('block:destroyed', (data) => {
+    console.log(`Player ${socket.id} destroyed a block at (${data.x}, ${data.y})`);
+    
+    // Broadcast block destruction to all players
+    io.emit('block:destroyed', {
+      x: data.x,
+      y: data.y,
+      type: data.type,
+      playerId: socket.id
+    });
+    
+    // Determine if a power-up should spawn (15% chance)
+    const POWERUP_CHANCE = 0.15;
+    if (Math.random() < POWERUP_CHANCE) {
+      // Determine power-up type with weighted probability
+      // Bomb: 40%, Flame: 30%, Speed: 30%
+      const typeRoll = Math.random();
+      let selectedType;
+      
+      if (typeRoll < 0.4) {
+        selectedType = 'BOMB';
+      } else if (typeRoll < 0.7) {
+        selectedType = 'FLAME';
+      } else {
+        selectedType = 'SPEED';
+      }
+      
+      console.log(`Server spawning a ${selectedType} power-up at (${data.x}, ${data.y})`);
+      
+      // Broadcast power-up spawn to all players
+      io.emit('powerup:spawned', {
+        x: data.x,
+        y: data.y,
+        type: selectedType,
+        timestamp: Date.now(),
+        playerId: socket.id
+      });
+    }
   });
   
   // Handle power-up collection
