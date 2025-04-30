@@ -374,6 +374,34 @@ io.on('connection', (socket) => {
     console.log(`Broadcast powerup collection at (${data.x}, ${data.y}) by player ${socket.id}`);
   });
   
+  // Handle player hit events
+  socket.on('player_hit', (data) => {
+    console.log('Player hit event received:', data);
+    
+    // Check if we have the required data
+    if (!data.playerId) {
+      console.log('Missing required data for player hit');
+      return;
+    }
+    
+    // If the player exists in game state, reduce their lives
+    if (gameState.players[data.playerId]) {
+      // Reduce lives if not already at 0
+      if (gameState.players[data.playerId].lives > 0) {
+        gameState.players[data.playerId].lives -= 1;
+      }
+      
+      console.log(`Player ${data.playerId} hit, lives remaining: ${gameState.players[data.playerId].lives}`);
+    }
+    
+    // Broadcast player hit to all clients
+    io.emit('player:hit', {
+      playerId: data.playerId,
+      attackerId: data.attackerId || socket.id,
+      timestamp: Date.now()
+    });
+  });
+  
   // Handle chat messages
   socket.on('chat', (data) => {
     // Broadcast chat message to all players

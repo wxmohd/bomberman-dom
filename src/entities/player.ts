@@ -738,6 +738,16 @@ export class Player {
       livesRemaining: this.lives
     });
     
+    // Send hit event to server for websocket synchronization
+    // Only send if this is a remote hit (from another player's bomb)
+    if (data.attackerId && data.attackerId !== this.id) {
+      console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId}`);
+      sendToServer(EVENTS.PLAYER_HIT, {
+        playerId: this.id,
+        attackerId: data.attackerId
+      });
+    }
+    
     // Make player invulnerable temporarily
     this.setInvulnerable();
     

@@ -291,6 +291,25 @@ function setupEventListeners(): void {
     });
   });
   
+  // Remote player hit event from server
+  socket.on('player:hit', (data: { playerId: string, attackerId: string, timestamp: number }) => {
+    console.log('Received player:hit event from server:', data);
+    
+    // Forward to event bus for player system to handle
+    // Only forward if this is not the local player (local player already handled the hit)
+    const localPlayerId = localStorage.getItem('playerId');
+    
+    // We still emit the event for the local player if they were hit by another player
+    // This ensures the life count is synchronized properly
+    if (data.playerId !== localPlayerId || data.attackerId !== localPlayerId) {
+      console.log(`Forwarding remote player hit event: Player ${data.playerId} hit by ${data.attackerId}`);
+      eventBus.emit('player:hit', {
+        playerId: data.playerId,
+        attackerId: data.attackerId
+      });
+    }
+  });
+  
   // Player joined event
   eventBus.on('player:joined', (data: { id: string, nickname: string }) => {
     // Add system message

@@ -232,10 +232,16 @@ export function updateHUD(): void {
   // Clear existing HUD
   hudContainer.innerHTML = '';
   
-  // Create player power-up displays
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
+  
+  // Create player power-up displays - only for the local player
   Object.entries(playerPowerUps).forEach(([playerId, powerups]) => {
-    const playerHUD = createPlayerHUD(playerId, powerups);
-    hudContainer!.appendChild(playerHUD);
+    // Only show HUD for the local player
+    if (playerId === localPlayerId) {
+      const playerHUD = createPlayerHUD(playerId, powerups);
+      hudContainer!.appendChild(playerHUD);
+    }
   });
 }
 
@@ -439,21 +445,31 @@ export function getPlayerPowerUps(playerId: string): { bombs: number; flames: nu
 function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void {
   const { id, livesRemaining } = data;
   
-  // Initialize player power-ups if not exists
-  if (!playerPowerUps[id]) {
-    playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
-  }
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
   
-  // Update lives count
-  playerPowerUps[id].lives = livesRemaining;
-  
-  // Update HUD
-  updateHUD();
-  
-  // Check if player is eliminated
-  if (livesRemaining <= 0) {
-    // Show game over message for the eliminated player
-    showGameOverMessage(id);
+  // Only update the HUD if this is the local player
+  if (id === localPlayerId) {
+    console.log(`Updating HUD for local player ${id} with lives: ${livesRemaining}`);
+    
+    // Initialize player power-ups if not exists
+    if (!playerPowerUps[id]) {
+      playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
+    }
+    
+    // Update lives count
+    playerPowerUps[id].lives = livesRemaining;
+    
+    // Update HUD
+    updateHUD();
+    
+    // Check if player is eliminated
+    if (livesRemaining <= 0) {
+      // Show game over message for the eliminated player
+      showGameOverMessage(id);
+    }
+  } else {
+    console.log(`Not updating HUD for remote player ${id}`);
   }
 }
 
