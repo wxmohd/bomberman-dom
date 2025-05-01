@@ -84,15 +84,15 @@ export class PowerUp {
     this.createdAt = Date.now();
   }
   
-  // Get icon for power-up type
+  // Get icon image path for power-up type
   private getIcon(): string {
     switch (this.type) {
       case PowerUpType.BOMB:
-        return '💣';
+        return 'img/Bomb.png';
       case PowerUpType.FLAME:
-        return '🔥';
+        return 'img/Fire.png';
       case PowerUpType.SPEED:
-        return '⚡';
+        return 'img/Speed.png';
       default:
         return '?';
     }
@@ -129,7 +129,7 @@ export class PowerUp {
     this.element.setAttribute('data-type', this.type);
     
     const color = this.getColor();
-    const icon = this.getIcon();
+    const iconPath = this.getIcon();
     
     // Set styles directly
     this.element.style.position = 'absolute';
@@ -137,18 +137,34 @@ export class PowerUp {
     this.element.style.top = `${this.y * TILE_SIZE}px`; // Use full tile position
     this.element.style.width = `${TILE_SIZE}px`; // Use full tile size
     this.element.style.height = `${TILE_SIZE}px`; // Use full tile size
-    this.element.style.backgroundColor = color;
-    this.element.style.borderRadius = '50%';
+    this.element.style.backgroundColor = 'transparent'; // Transparent background to show image
     this.element.style.zIndex = '50';
     this.element.style.boxShadow = `0 0 10px ${color}, 0 0 15px ${color}`;
     this.element.style.display = 'flex';
     this.element.style.justifyContent = 'center';
     this.element.style.alignItems = 'center';
-    this.element.style.fontSize = `${TILE_SIZE / 2}px`;
     this.element.style.pointerEvents = 'none';
     
-    // Add text content
-    this.element.textContent = icon;
+    // Create and add image element
+    const imgElement = document.createElement('img');
+    imgElement.src = iconPath;
+    imgElement.alt = this.type;
+    imgElement.style.width = '80%';
+    imgElement.style.height = '80%';
+    imgElement.style.objectFit = 'contain';
+    imgElement.style.display = 'block';
+    imgElement.style.margin = 'auto';
+    imgElement.onerror = () => {
+      console.error(`Failed to load image: ${iconPath}`);
+      // Fallback to emoji if image fails to load
+      this.element!.textContent = this.type === PowerUpType.BOMB ? '💣' : 
+                                 this.type === PowerUpType.FLAME ? '🔥' : 
+                                 this.type === PowerUpType.SPEED ? '⚡' : '?';
+    };
+    this.element.appendChild(imgElement);
+    
+    // Log image path for debugging
+    console.log(`Loading powerup image: ${iconPath}`);
     
     // Add spawn animation
     this.element.style.animation = 'powerup-spawn 0.3s ease-out forwards, powerup-pulse 1s infinite alternate 0.3s';

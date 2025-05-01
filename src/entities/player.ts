@@ -848,7 +848,6 @@ export class Player {
       transform: translateX(-50%);
       width: 4px;
       height: 10px;
-      background-color: #FF4500;
       z-index: 801;
     `;
     bomb.appendChild(fuse);
@@ -1034,19 +1033,19 @@ export class Player {
           100% { transform: scale(0); opacity: 0; }
         }
         
-        @keyframes green-space-appear {
-          0% { transform: scale(0); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        // @keyframes green-space-appear {
+        //   0% { transform: scale(0); opacity: 0; }
+        //   100% { transform: scale(1); opacity: 1; }
+        // }
         
         @keyframes powerup-spawn-indicator {
           0% { transform: scale(0); opacity: 1; }
           100% { transform: scale(2); opacity: 0; }
         }
         
-        .green-space {
-          animation: green-space-appear 0.3s forwards;
-        }
+        // .green-space {
+        //   animation: green-space-appear 0.3s forwards;
+        // }
       `;
       document.head.appendChild(style);
     }
@@ -1131,20 +1130,20 @@ export class Player {
         // Animate block destruction
         blockEl.style.animation = 'block-destroy 0.5s forwards';
         
-        // Create a green space where the block was
-        const greenSpace = document.createElement('div');
-        greenSpace.className = 'green-space';
-        greenSpace.style.position = 'absolute';
-        greenSpace.style.left = blockEl.style.left;
-        greenSpace.style.top = blockEl.style.top;
-        greenSpace.style.width = `${TILE_SIZE}px`;
-        greenSpace.style.height = `${TILE_SIZE}px`;
-        greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
-        greenSpace.style.zIndex = '5'; // Below player but above background
+        // Create an empty space where the block was
+        const emptySpace = document.createElement('div');
+        emptySpace.className = 'empty-space';
+        emptySpace.style.position = 'absolute';
+        emptySpace.style.left = blockEl.style.left;
+        emptySpace.style.top = blockEl.style.top;
+        emptySpace.style.width = `${TILE_SIZE}px`;
+        emptySpace.style.height = `${TILE_SIZE}px`;
+        emptySpace.style.backgroundColor = 'transparent'; // Transparent background
+        emptySpace.style.zIndex = '5'; // Below player but above background
         
-        // Add green space to the game container
+        // Add empty space to the game container
         if (this.gameContainer) {
-          this.gameContainer.appendChild(greenSpace);
+          this.gameContainer.appendChild(emptySpace);
         }
         
         // Remove block after animation

@@ -217,9 +217,11 @@ function renderLoginScreen(container: HTMLElement): void {
     justify-content: center;
     width: 100%;
     height: 100%;
-    background-color: #1a1a1a;
-    color: white;
-    font-family: Arial, sans-serif;
+    background-image: url('/img/MapBack.png');
+    background-size: cover;
+    background-position: center;
+    color: #f5f5f5;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create title
@@ -228,8 +230,9 @@ function renderLoginScreen(container: HTMLElement): void {
   title.style.cssText = `
     font-size: 3rem;
     margin-bottom: 2rem;
-    color: #f44336;
-    text-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create nickname input
@@ -241,6 +244,10 @@ function renderLoginScreen(container: HTMLElement): void {
     margin-bottom: 2rem;
     width: 100%;
     max-width: 400px;
+    background-color: rgba(126, 112, 83, 0.8);
+    padding: 20px;
+    border: 4px solid #d4af37;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   `;
   
   const inputLabel = document.createElement('label');
@@ -249,6 +256,9 @@ function renderLoginScreen(container: HTMLElement): void {
     font-size: 1.2rem;
     margin-bottom: 0.5rem;
     align-self: flex-start;
+    color: #d4af37;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    font-weight: bold;
   `;
   
   const input = document.createElement('input');
@@ -258,11 +268,12 @@ function renderLoginScreen(container: HTMLElement): void {
     width: 100%;
     padding: 1rem;
     font-size: 1.2rem;
-    border: none;
+    border: 2px solid #d4af37;
     border-radius: 4px;
-    background-color: #333;
-    color: white;
+    background-color: rgba(74, 66, 51, 0.9);
+    color: #f5f5f5;
     margin-bottom: 1rem;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create join button
@@ -271,12 +282,16 @@ function renderLoginScreen(container: HTMLElement): void {
   joinButton.style.cssText = `
     padding: 1rem 2rem;
     font-size: 1.2rem;
-    background-color: #4CAF50;
-    color: white;
+    background-color: #d4af37;
+    color: #4a4233;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     width: 100%;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    font-weight: bold;
+    transition: all 0.2s;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3);
   `;
   
   joinButton.addEventListener('click', () => {
@@ -364,9 +379,11 @@ function renderWaitingRoom(container: HTMLElement): void {
     justify-content: center;
     width: 100%;
     height: 100%;
-    background-color: #1a1a1a;
-    color: white;
-    font-family: Arial, sans-serif;
+    background-image: url('/img/MapBack.png');
+    background-size: cover;
+    background-position: center;
+    color: #f5f5f5;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create title
@@ -375,8 +392,9 @@ function renderWaitingRoom(container: HTMLElement): void {
   title.style.cssText = `
     font-size: 3rem;
     margin-bottom: 1rem;
-    color: #f44336;
-    text-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create player count

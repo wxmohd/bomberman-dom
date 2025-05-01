@@ -37,15 +37,13 @@ export function initHUD(): void {
     // Create the HUD container immediately at default position
     hudContainer = document.createElement('div');
     hudContainer.id = 'game-hud';
-    hudContainer.style.cssText = `
-      position: fixed;
-      top: 80px;
-      left: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 100;
-    `;
+    hudContainer.style.position = 'fixed';
+    hudContainer.style.top = '80px';
+    hudContainer.style.left = '10px';
+    hudContainer.style.display = 'flex';
+    hudContainer.style.flexDirection = 'column';
+    hudContainer.style.gap = '10px';
+    hudContainer.style.zIndex = '100';
     document.body.appendChild(hudContainer);
     
     // Add HUD styles
@@ -71,8 +69,6 @@ export function initHUD(): void {
     updateHUD();
   }
 }
-
-
 
 // Initialize event listeners
 function initEventListeners(): void {
@@ -300,56 +296,45 @@ function showPauseOverlay(): void {
   // Create pause overlay
   pauseOverlay = document.createElement('div');
   pauseOverlay.className = 'pause-overlay';
-  pauseOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-  `;
+  pauseOverlay.style.position = 'fixed';
+  pauseOverlay.style.top = '0';
+  pauseOverlay.style.left = '0';
+  pauseOverlay.style.width = '100%';
+  pauseOverlay.style.height = '100%';
+  pauseOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  pauseOverlay.style.display = 'flex';
+  pauseOverlay.style.flexDirection = 'column';
+  pauseOverlay.style.justifyContent = 'center';
   
-  // Create pause message
+  // Create message box
   const messageBox = document.createElement('div');
-  messageBox.className = 'game-over';
-  messageBox.style.cssText = `
-    background-color: rgba(255, 158, 196, 0.9);
-    color: #333333;
-    padding: 30px;
-    border: 5px solid #ff6bac;
-    border-radius: 20px;
-    text-align: center;
-    max-width: 500px;
-    box-shadow: 0 0 20px rgba(255, 107, 172, 0.6);
-    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-  `;
+  messageBox.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+  messageBox.style.padding = '20px';
+  messageBox.style.borderRadius = '10px';
+  messageBox.style.border = '3px solid #d4af37';
+  messageBox.style.textAlign = 'center';
+  messageBox.style.maxWidth = '500px';
+  messageBox.style.display = 'flex';
+  messageBox.style.flexDirection = 'column';
+  messageBox.style.justifyContent = 'center';
   
   // Create title
   const title = document.createElement('h2');
-  title.style.cssText = `
-    margin-top: 0;
-    font-size: 32px;
-    color: #333333;
-    margin-bottom: 20px;
-    text-shadow: 2px 2px 0px #ffffff;
-    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-  `;
+  title.style.color = '#f5e7c1';
+  title.style.fontSize = '24px';
+  title.style.marginTop = '5px';
+  title.style.marginBottom = '10px';
+  title.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  title.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.5)';
   title.textContent = 'Game Paused';
   
   // Create instructions
-  const instructions = document.createElement('div');
+  const instructions = document.createElement('p');
+  instructions.style.color = '#d4af37';
+  instructions.style.fontSize = '16px';
+  instructions.style.marginTop = '10px';
+  instructions.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
   instructions.textContent = 'Press R to resume';
-  instructions.style.cssText = `
-    color: white;
-    font-size: 24px;
-    margin-bottom: 40px;
-    font-family: 'Arial', sans-serif;
-  `;
   
   // Add elements to message box
   messageBox.appendChild(title);
@@ -376,32 +361,48 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   playerDiv.className = 'player-powerups';
   playerDiv.id = `player-powerups-${playerId}`;
   
+  // Apply Egyptian theme styling
+  playerDiv.style.backgroundColor = 'rgba(126, 112, 83, 0.85)';
+  playerDiv.style.border = '2px solid #d4af37';
+  playerDiv.style.borderRadius = '5px';
+  playerDiv.style.padding = '12px';
+  playerDiv.style.color = '#f5e7c1';
+  playerDiv.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  playerDiv.style.minWidth = '160px';
+  playerDiv.style.marginBottom = '10px';
+  playerDiv.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+  
   // Get player nickname from localStorage or use default
   let playerNickname = 'Player';
   let characterColor = '#ff9ec4'; // Default Blossom color
   
   if (playerId === localStorage.getItem('playerId')) {
     playerNickname = localStorage.getItem('playerNickname') || 'You';
-    // Assign a Powerpuff Girl character based on player ID
+    // Assign an Egyptian character based on player ID
     const playerIdNum = parseInt(playerId.replace(/\D/g, '')) || 0;
     const characters = [
-      { name: 'Pharon', color: '#ff9ec4' },
-      { name: 'Mummy', color: '#a1d6e2' },
-      { name: 'Witch', color: '#bcee68' }
+      { name: 'Pharaoh', color: '#d4af37' },
+      { name: 'Mummy', color: '#e4c49b' },
+      { name: 'Anubis', color: '#7e7053' }
     ];
     const character = characters[playerIdNum % 3];
     characterColor = character.color;
     playerNickname = `${playerNickname} (${character.name})`;
   }
   
-  // Apply character color to the player HUD
-  playerDiv.style.borderColor = characterColor;
+  // Character color is used for accents in the Egyptian theme
+  // We're using gold borders consistently instead of character colors
   
-  // Create player header with Powerpuff Girls styling
+  // Create player header with Egyptian styling
   const header = document.createElement('h3');
   header.textContent = playerNickname;
-  header.style.color = '#333333';
-  header.style.borderBottomColor = characterColor;
+  header.style.margin = '0 0 10px 0';
+  header.style.fontSize = '16px';
+  header.style.fontWeight = 'bold';
+  header.style.color = '#f5e7c1';
+  header.style.borderBottom = '2px dotted #d4af37';
+  header.style.paddingBottom = '6px';
+  header.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.5)';
   playerDiv.appendChild(header);
   
   // Create power-up stats with Powerpuff Girls styling
@@ -415,13 +416,22 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   
   const bombLabel = document.createElement('span');
   bombLabel.textContent = 'Bombs';
+  bombLabel.style.color = '#f5e7c1';
   bombStat.appendChild(bombLabel);
   
   const bombValue = document.createElement('span');
   bombValue.className = 'powerup-value';
   bombValue.textContent = powerups.bombs.toString();
   bombValue.id = `${playerId}-bombs`;
-  bombValue.style.borderColor = characterColor;
+  bombValue.style.fontWeight = 'bold';
+  bombValue.style.marginLeft = 'auto';
+  bombValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
+  bombValue.style.border = '1px solid #d4af37';
+  bombValue.style.borderRadius = '50%';
+  bombValue.style.padding = '2px 8px';
+  bombValue.style.minWidth = '20px';
+  bombValue.style.textAlign = 'center';
+  bombValue.style.color = '#ffffff';
   bombStat.appendChild(bombValue);
   
   playerDiv.appendChild(bombStat);
@@ -436,13 +446,22 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   
   const flameLabel = document.createElement('span');
   flameLabel.textContent = 'Flames';
+  flameLabel.style.color = '#f5e7c1';
   flameStat.appendChild(flameLabel);
   
   const flameValue = document.createElement('span');
   flameValue.className = 'powerup-value';
   flameValue.textContent = powerups.flames.toString();
   flameValue.id = `${playerId}-flames`;
-  flameValue.style.borderColor = characterColor;
+  flameValue.style.fontWeight = 'bold';
+  flameValue.style.marginLeft = 'auto';
+  flameValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
+  flameValue.style.border = '1px solid #d4af37';
+  flameValue.style.borderRadius = '50%';
+  flameValue.style.padding = '2px 8px';
+  flameValue.style.minWidth = '20px';
+  flameValue.style.textAlign = 'center';
+  flameValue.style.color = '#ffffff';
   flameStat.appendChild(flameValue);
   
   playerDiv.appendChild(flameStat);
@@ -457,13 +476,22 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   
   const speedLabel = document.createElement('span');
   speedLabel.textContent = 'Speed';
+  speedLabel.style.color = '#f5e7c1';
   speedStat.appendChild(speedLabel);
   
   const speedValue = document.createElement('span');
   speedValue.className = 'powerup-value';
   speedValue.textContent = powerups.speed.toString();
   speedValue.id = `${playerId}-speed`;
-  speedValue.style.borderColor = characterColor;
+  speedValue.style.fontWeight = 'bold';
+  speedValue.style.marginLeft = 'auto';
+  speedValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
+  speedValue.style.border = '1px solid #d4af37';
+  speedValue.style.borderRadius = '50%';
+  speedValue.style.padding = '2px 8px';
+  speedValue.style.minWidth = '20px';
+  speedValue.style.textAlign = 'center';
+  speedValue.style.color = '#ffffff';
   speedStat.appendChild(speedValue);
   
   playerDiv.appendChild(speedStat);
@@ -478,13 +506,22 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   
   const livesLabel = document.createElement('span');
   livesLabel.textContent = 'Lives';
+  livesLabel.style.color = '#f5e7c1';
   livesStat.appendChild(livesLabel);
   
   const livesValue = document.createElement('span');
   livesValue.className = 'powerup-value';
   livesValue.textContent = powerups.lives.toString();
   livesValue.id = `${playerId}-lives`;
-  livesValue.style.borderColor = characterColor;
+  livesValue.style.fontWeight = 'bold';
+  livesValue.style.marginLeft = 'auto';
+  livesValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
+  livesValue.style.border = '1px solid #d4af37';
+  livesValue.style.borderRadius = '50%';
+  livesValue.style.padding = '2px 8px';
+  livesValue.style.minWidth = '20px';
+  livesValue.style.textAlign = 'center';
+  livesValue.style.color = '#ffffff';
   livesStat.appendChild(livesValue);
   
   playerDiv.appendChild(livesStat);
@@ -532,77 +569,124 @@ function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void
 
 // Show game over message
 function showGameOverMessage(playerId: string): void {
-  // Get player nickname from localStorage or use default
+  // Get player nickname
   let playerNickname = 'Player';
   
+  // If this is the local player, use their nickname
   if (playerId === localStorage.getItem('playerId')) {
     playerNickname = localStorage.getItem('playerNickname') || 'You';
   }
   
-  // Create overlay with Powerpuff Girls theme
+  // Create overlay with Egyptian theme
   const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(255, 158, 196, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  `;
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = '1000';
+  
+  // Create message box with Egyptian theme
+  const messageBox = document.createElement('div');
+  messageBox.style.backgroundColor = 'rgba(126, 112, 83, 0.95)';
+  messageBox.style.border = '4px solid #d4af37';
+  messageBox.style.borderRadius = '10px';
+  messageBox.style.padding = '30px 40px';
+  messageBox.style.maxWidth = '500px';
+  messageBox.style.textAlign = 'center';
+  messageBox.style.boxShadow = '0 0 20px rgba(212, 175, 55, 0.5)';
+  messageBox.style.position = 'relative';
+  
+  // Add Egyptian decorative elements to the box
+  const topDecoration = document.createElement('div');
+  topDecoration.style.position = 'absolute';
+  topDecoration.style.top = '-15px';
+  topDecoration.style.left = '0';
+  topDecoration.style.width = '100%';
+  topDecoration.style.textAlign = 'center';
+  topDecoration.style.fontSize = '24px';
+  topDecoration.innerHTML = '&#160; &#160; &#160;';
+  topDecoration.style.color = '#d4af37';
+  messageBox.appendChild(topDecoration);
+  
+  const bottomDecoration = document.createElement('div');
+  bottomDecoration.style.position = 'absolute';
+  bottomDecoration.style.bottom = '-15px';
+  bottomDecoration.style.left = '0';
+  bottomDecoration.style.width = '100%';
+  bottomDecoration.style.textAlign = 'center';
+  bottomDecoration.style.fontSize = '24px';
+  bottomDecoration.innerHTML = '&#160; &#160; &#160;';
+  bottomDecoration.style.color = '#d4af37';
+  messageBox.appendChild(bottomDecoration);
   
   // Create game over message
   const message = document.createElement('h1');
-  message.textContent = `Game Over - ${playerNickname} Eliminated!`;
-  message.style.cssText = `
-    color: #ff3333;
-    font-size: 48px;
-    margin-bottom: 30px;
-    text-shadow: 0 0 15px red;
-    font-family: 'Arial', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    animation: pulse 1.5s infinite alternate;
-  `;
+  message.textContent = `Game Over`;
+  message.style.color = '#d4af37';
+  message.style.fontSize = '42px';
+  message.style.margin = '0 0 20px 0';
+  message.style.textShadow = '0 0 10px rgba(245, 231, 193, 0.5)';
+  message.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  message.style.textTransform = 'uppercase';
+  message.style.letterSpacing = '2px';
+  message.style.animation = 'pulse 1.5s infinite alternate';
+  messageBox.appendChild(message);
+  
+  // Create player eliminated message
+  const playerMessage = document.createElement('h2');
+  playerMessage.textContent = `${playerNickname} Eliminated!`;
+  playerMessage.style.color = '#f5e7c1';
+  playerMessage.style.fontSize = '28px';
+  playerMessage.style.margin = '0 0 30px 0';
+  playerMessage.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  messageBox.appendChild(playerMessage);
   
   // Create lives message
   const livesMessage = document.createElement('div');
   livesMessage.textContent = 'No lives remaining';
-  livesMessage.style.cssText = `
-    color: white;
-    font-size: 24px;
-    margin-bottom: 40px;
-    font-family: 'Arial', sans-serif;
-  `;
+  livesMessage.style.color = '#f5e7c1';
+  livesMessage.style.fontSize = '20px';
+  livesMessage.style.marginBottom = '30px';
+  livesMessage.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  messageBox.appendChild(livesMessage);
   
-  // Create play again button with Powerpuff Girls theme
+  // Create hieroglyphic decoration
+  const hieroglyphics = document.createElement('div');
+  hieroglyphics.style.fontSize = '24px';
+  hieroglyphics.style.color = '#d4af37';
+  hieroglyphics.style.margin = '15px 0';
+  hieroglyphics.innerHTML = '&#160; &#160; &#160; &#160; &#160; &#160;';
+  messageBox.appendChild(hieroglyphics);
+  
+  // Create play again button with Egyptian theme
   const playAgainButton = document.createElement('button');
   playAgainButton.textContent = 'Play Again';
-  playAgainButton.style.cssText = `
-    background-color: #ff6bac;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    font-size: 18px;
-    cursor: pointer;
-    border-radius: 25px;
-    margin-right: 15px;
-    transition: all 0.3s;
-    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-    font-weight: bold;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  `;
+  playAgainButton.style.backgroundColor = '#d4af37';
+  playAgainButton.style.color = '#000';
+  playAgainButton.style.border = 'none';
+  playAgainButton.style.padding = '12px 30px';
+  playAgainButton.style.fontSize = '18px';
+  playAgainButton.style.cursor = 'pointer';
+  playAgainButton.style.borderRadius = '5px';
+  playAgainButton.style.margin = '10px 0';
+  playAgainButton.style.transition = 'all 0.3s';
+  playAgainButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  playAgainButton.style.fontWeight = 'bold';
+  playAgainButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+  messageBox.appendChild(playAgainButton);
   
-  // Button hover effects with Powerpuff Girls theme
+  // Button hover effects with Egyptian theme
   playAgainButton.onmouseover = () => {
-    playAgainButton.style.backgroundColor = '#ff4b8d';
+    playAgainButton.style.backgroundColor = '#f5e7c1';
     playAgainButton.style.transform = 'scale(1.05)';
   };
   playAgainButton.onmouseout = () => {
-    playAgainButton.style.backgroundColor = '#ff6bac';
+    playAgainButton.style.backgroundColor = '#d4af37';
     playAgainButton.style.transform = 'scale(1)';
   };
   
@@ -626,18 +710,17 @@ function showGameOverMessage(playerId: string): void {
       }
       
       @keyframes pulse {
-        0% { transform: scale(1); text-shadow: 0 0 15px red; }
-        100% { transform: scale(1.05); text-shadow: 0 0 25px red, 0 0 35px red; }
+        0% { transform: scale(1); text-shadow: 0 0 10px rgba(245, 231, 193, 0.5); }
+        100% { transform: scale(1.03); text-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 30px rgba(245, 231, 193, 0.5); }
       }
     `;
     document.head.appendChild(styleEl);
   }
   
-  // Add elements to overlay
-  overlay.appendChild(message);
-  overlay.appendChild(livesMessage);
-  overlay.appendChild(playAgainButton);
+  // Add message box to overlay
+  overlay.appendChild(messageBox);
   
-  // Add overlay to body
+  // Add overlay to body with fade-in animation
+  overlay.style.animation = 'fade-in 0.5s ease-in';
   document.body.appendChild(overlay);
 }
