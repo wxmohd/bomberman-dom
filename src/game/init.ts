@@ -43,23 +43,31 @@ function createPlayerDirectly(container: HTMLElement, id: string, nickname: stri
   playerEl.style.top = `${y * TILE_SIZE}px`;
   playerEl.style.width = `${TILE_SIZE}px`;
   playerEl.style.height = `${TILE_SIZE}px`;
-  playerEl.style.backgroundColor = id === localStorage.getItem('playerId') ? '#FF0000' : '#0000FF';
-  playerEl.style.borderRadius = '50%';
   playerEl.style.zIndex = '1000';
-  playerEl.style.boxShadow = '0 0 15px 5px rgba(255,0,0,0.7)';
-  playerEl.style.border = '2px solid white';
   playerEl.style.boxSizing = 'border-box';
   
-  // Add inner element for better visibility
-  const innerElement = document.createElement('div');
-  innerElement.style.position = 'absolute';
-  innerElement.style.width = '60%';
-  innerElement.style.height = '60%';
-  innerElement.style.top = '20%';
-  innerElement.style.left = '20%';
-  innerElement.style.backgroundColor = 'white';
-  innerElement.style.borderRadius = '50%';
-  playerEl.appendChild(innerElement);
+  // Determine player number based on existing players
+  const existingPlayers = document.querySelectorAll('.player').length;
+  const playerNumber = existingPlayers + 1;
+  
+  // Player character images based on player number
+  const playerImages = [
+    '/img/IK.png',  // Player 1
+    '/img/MMD.png', // Player 2
+    '/img/WA.png',  // Player 3
+    '/img/MG.png'   // Player 4
+  ];
+  const imageIndex = (playerNumber - 1) % playerImages.length;
+  const playerImage = playerImages[imageIndex];
+  
+  // Set background image instead of color
+  playerEl.style.backgroundImage = `url(${playerImage})`;
+  playerEl.style.backgroundSize = 'contain';
+  playerEl.style.backgroundPosition = 'center';
+  playerEl.style.backgroundRepeat = 'no-repeat';
+  playerEl.style.backgroundColor = 'transparent';
+  
+  // No inner element to keep the character images clean
   
   // Add name tag
   const nameTag = document.createElement('div');
