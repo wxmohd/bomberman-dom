@@ -212,27 +212,37 @@ function addHUDStyles(): void {
 function handlePowerUpCollected(data: { playerId: string; type: PowerUpType }): void {
   const { playerId, type } = data;
   
-  // Initialize player power-ups if not exists
-  if (!playerPowerUps[playerId]) {
-    playerPowerUps[playerId] = { ...DEFAULT_POWER_UP_VALUES };
-    console.log(`Initializing HUD for player ${playerId} with default values`);
-  }
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
   
-  // Update power-up count
-  switch (type) {
-    case PowerUpType.BOMB:
-      playerPowerUps[playerId].bombs++;
-      break;
-    case PowerUpType.FLAME:
-      playerPowerUps[playerId].flames++;
-      break;
-    case PowerUpType.SPEED:
-      playerPowerUps[playerId].speed++;
-      break;
+  // Only update the HUD if this is the local player's powerup
+  if (playerId === localPlayerId) {
+    console.log(`Updating HUD for local player ${playerId}`);
+    
+    // Initialize player power-ups if not exists
+    if (!playerPowerUps[playerId]) {
+      playerPowerUps[playerId] = { ...DEFAULT_POWER_UP_VALUES };
+      console.log(`Initializing HUD for player ${playerId} with default values`);
+    }
+    
+    // Update power-up count
+    switch (type) {
+      case PowerUpType.BOMB:
+        playerPowerUps[playerId].bombs++;
+        break;
+      case PowerUpType.FLAME:
+        playerPowerUps[playerId].flames++;
+        break;
+      case PowerUpType.SPEED:
+        playerPowerUps[playerId].speed++;
+        break;
+    }
+    
+    // Update HUD
+    updateHUD();
+  } else {
+    console.log(`Not updating HUD for remote player ${playerId}`);
   }
-  
-  // Update HUD
-  updateHUD();
 }
 
 // Update the HUD display

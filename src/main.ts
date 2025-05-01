@@ -6,6 +6,7 @@ import { initChatUI } from './ui/chatUI';
 import { eventBus } from '../framework/events';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
+import { TILE_SIZE } from './game/constants';
 import { initLobby } from './game/lobby';
 import { initEgyptTheme } from './ui/egyptTheme';
 
@@ -268,6 +269,31 @@ function setupEventListeners(): void {
         console.log(`Remote powerup collected by player ${data.playerId}`);
       } else {
         console.log(`No powerup found at position (${data.x}, ${data.y}) to collect`);
+        
+        // If we didn't find the powerup in the activePowerUps array, try to find it directly in the DOM
+        // This is a fallback for cases where the powerup might be in the DOM but not tracked in our array
+        const powerupElements = document.querySelectorAll('.powerup');
+        console.log(`Searching through ${powerupElements.length} powerup DOM elements`);
+        
+        powerupElements.forEach((el) => {
+          const powerupEl = el as HTMLElement;
+          const left = parseInt(powerupEl.style.left) / TILE_SIZE;
+          const top = parseInt(powerupEl.style.top) / TILE_SIZE;
+          
+          if (Math.floor(left) === data.x && Math.floor(top) === data.y) {
+            console.log(`Found powerup in DOM at position (${data.x}, ${data.y})`);
+            
+            // Add collection animation to the powerup
+            powerupEl.style.animation = 'powerup-collect 0.5s forwards';
+            
+            // Remove the powerup element after animation
+            setTimeout(() => {
+              if (powerupEl.parentNode) {
+                powerupEl.parentNode.removeChild(powerupEl);
+              }
+            }, 500);
+          }
+        });
       }
     }).catch(error => {
       console.error('Failed to handle remote powerup collection:', error);
