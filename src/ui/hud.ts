@@ -248,10 +248,16 @@ export function updateHUD(): void {
   // Clear existing HUD
   hudContainer.innerHTML = '';
   
-  // Create player power-up displays
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
+  
+  // Create player power-up displays - only for the local player
   Object.entries(playerPowerUps).forEach(([playerId, powerups]) => {
-    const playerHUD = createPlayerHUD(playerId, powerups);
-    hudContainer!.appendChild(playerHUD);
+    // Only show HUD for the local player
+    if (playerId === localPlayerId) {
+      const playerHUD = createPlayerHUD(playerId, powerups);
+      hudContainer!.appendChild(playerHUD);
+    }
   });
 }
 
@@ -549,33 +555,42 @@ export function getPlayerPowerUps(playerId: string): { bombs: number; flames: nu
 function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void {
   const { id, livesRemaining } = data;
   
-  // Initialize player power-ups if not exists
-  if (!playerPowerUps[id]) {
-    playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
-  }
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
   
-  // Update lives count
-  playerPowerUps[id].lives = livesRemaining;
-  
-  // Update HUD
-  updateHUD();
-  
-  // Check if player is eliminated
-  if (livesRemaining <= 0) {
-    // Show game over message for the eliminated player
-    showGameOverMessage(id);
+  // Only update the HUD if this is the local player
+  if (id === localPlayerId) {
+    console.log(`Updating HUD for local player ${id} with lives: ${livesRemaining}`);
+    
+    // Initialize player power-ups if not exists
+    if (!playerPowerUps[id]) {
+      playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
+    }
+    
+    // Update lives count
+    playerPowerUps[id].lives = livesRemaining;
+    
+    // Update HUD
+    updateHUD();
+    
+    // Check if player is eliminated
+    if (livesRemaining <= 0) {
+      // Show game over message for the eliminated player
+      showGameOverMessage(id);
+    }
+  } else {
+    console.log(`Not updating HUD for remote player ${id}`);
   }
 }
 
-// Show game over message
+// Show player elimination message (temporary notification, not full game over)
 function showGameOverMessage(playerId: string): void {
-  // Get player nickname
-  let playerNickname = 'Player';
+  // Only show for local player
+  const isLocalPlayer = localStorage.getItem('playerId') === playerId;
+  if (!isLocalPlayer) return;
   
-  // If this is the local player, use their nickname
-  if (playerId === localStorage.getItem('playerId')) {
-    playerNickname = localStorage.getItem('playerNickname') || 'You';
-  }
+  // Get player nickname
+  let playerNickname = localStorage.getItem('playerNickname') || 'You';
   
   // Create overlay with Egyptian theme
   const overlay = document.createElement('div');
@@ -589,6 +604,7 @@ function showGameOverMessage(playerId: string): void {
   overlay.style.alignItems = 'center';
   overlay.style.justifyContent = 'center';
   overlay.style.zIndex = '1000';
+  overlay.style.animation = 'fade-in 0.5s ease-in';
   
   // Create message box with Egyptian theme
   const messageBox = document.createElement('div');
@@ -600,6 +616,7 @@ function showGameOverMessage(playerId: string): void {
   messageBox.style.textAlign = 'center';
   messageBox.style.boxShadow = '0 0 20px rgba(212, 175, 55, 0.5)';
   messageBox.style.position = 'relative';
+  messageBox.style.animation = 'message-box-animation 0.5s ease-out';
   
   // Add Egyptian decorative elements to the box
   const topDecoration = document.createElement('div');
@@ -609,7 +626,7 @@ function showGameOverMessage(playerId: string): void {
   topDecoration.style.width = '100%';
   topDecoration.style.textAlign = 'center';
   topDecoration.style.fontSize = '24px';
-  topDecoration.innerHTML = '&#160; &#160; &#160;';
+  topDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
   topDecoration.style.color = '#d4af37';
   messageBox.appendChild(topDecoration);
   
@@ -620,7 +637,7 @@ function showGameOverMessage(playerId: string): void {
   bottomDecoration.style.width = '100%';
   bottomDecoration.style.textAlign = 'center';
   bottomDecoration.style.fontSize = '24px';
-  bottomDecoration.innerHTML = '&#160; &#160; &#160;';
+  bottomDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
   bottomDecoration.style.color = '#d4af37';
   messageBox.appendChild(bottomDecoration);
   
@@ -660,7 +677,7 @@ function showGameOverMessage(playerId: string): void {
   hieroglyphics.style.fontSize = '24px';
   hieroglyphics.style.color = '#d4af37';
   hieroglyphics.style.margin = '15px 0';
-  hieroglyphics.innerHTML = '&#160; &#160; &#160; &#160; &#160; &#160;';
+  hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
   messageBox.appendChild(hieroglyphics);
   
   // Create play again button with Egyptian theme
@@ -709,6 +726,12 @@ function showGameOverMessage(playerId: string): void {
         100% { opacity: 1; }
       }
       
+      @keyframes message-box-animation {
+        0% { opacity: 0; transform: scale(0.8); }
+        70% { opacity: 1; transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      
       @keyframes pulse {
         0% { transform: scale(1); text-shadow: 0 0 10px rgba(245, 231, 193, 0.5); }
         100% { transform: scale(1.03); text-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 30px rgba(245, 231, 193, 0.5); }
@@ -720,7 +743,16 @@ function showGameOverMessage(playerId: string): void {
   // Add message box to overlay
   overlay.appendChild(messageBox);
   
-  // Add overlay to body with fade-in animation
-  overlay.style.animation = 'fade-in 0.5s ease-in';
+  // Add overlay to body
   document.body.appendChild(overlay);
+  
+  // Auto-remove after a delay if user doesn't click Play Again
+  // This is optional - you can remove this if you want the user to explicitly click Play Again
+  /*
+  setTimeout(() => {
+    if (overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+  }, 10000); // 10 seconds
+  */
 }

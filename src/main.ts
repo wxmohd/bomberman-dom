@@ -300,6 +300,25 @@ function setupEventListeners(): void {
     });
   });
   
+  // Remote player hit event from server
+  socket.on('player:hit', (data: { playerId: string, attackerId: string, timestamp: number }) => {
+    console.log('Received player:hit event from server:', data);
+    
+    // Forward to event bus for player system to handle
+    // Only forward if this is not the local player (local player already handled the hit)
+    const localPlayerId = localStorage.getItem('playerId');
+    
+    // We still emit the event for the local player if they were hit by another player
+    // This ensures the life count is synchronized properly
+    if (data.playerId !== localPlayerId || data.attackerId !== localPlayerId) {
+      console.log(`Forwarding remote player hit event: Player ${data.playerId} hit by ${data.attackerId}`);
+      eventBus.emit('player:hit', {
+        playerId: data.playerId,
+        attackerId: data.attackerId
+      });
+    }
+  });
+  
   // Player joined event
   eventBus.on('player:joined', (data: { id: string, nickname: string }) => {
     // Add system message
@@ -338,18 +357,149 @@ function setupEventListeners(): void {
     eventBus.emit('game:start', data);
   });
   
-  // Game ended
+  // Game ended - only triggered when the game is truly over (only one player remains)
   eventBus.on('game:ended', (data) => {
+    console.log('Game ended event received:', data);
+    
     // Add system message
     if (data.winner) {
       addSystemMessage(`Game over! ${data.winner.nickname} wins!`);
+      
+      // Check if this is the local player who won
+      const isLocalPlayerWinner = data.winner.id === playerId;
+      
+      // Show game won message for the winner and game over for others
+      showGameResult(data.winner.nickname, isLocalPlayerWinner, data.lastPlayerStanding);
     } else {
       addSystemMessage('Game over!');
+      
+      // Show game over message for everyone
+      showGameResult(null, false, false);
     }
     
     // End game
     eventBus.emit('game:end', data);
   });
+  
+  // Handle remote player elimination (from server)
+  eventBus.on('remote:player:eliminated', (data) => {
+    console.log('Remote player eliminated event received:', data);
+    // We don't need to show any UI here, as the server will send game:ended
+    // when the game is truly over (only one player remains)
+  });
+  
+  // Function to show game result (win/lose) with appropriate UI
+  function showGameResult(winnerNickname: string | null, isLocalPlayerWinner: boolean, lastPlayerStanding: boolean): void {
+    // Create overlay for game result
+    const overlay = document.createElement('div');
+    overlay.className = 'game-result-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      animation: fade-in 0.5s ease;
+    `;
+    
+    // Create message
+    const message = document.createElement('h1');
+    
+    if (isLocalPlayerWinner) {
+      // Local player won
+      message.textContent = lastPlayerStanding ? 
+        'YOU WON! LAST PLAYER STANDING!' : 
+        'YOU WON THE GAME!';
+      message.style.color = '#4CAF50'; // Green for winner
+    } else if (winnerNickname) {
+      // Someone else won
+      message.textContent = `GAME OVER! ${winnerNickname} WINS!`;
+      message.style.color = '#FF5252'; // Red for loser
+    } else {
+      // No winner (draw)
+      message.textContent = 'GAME OVER! NO WINNER!';
+      message.style.color = '#FF9800'; // Orange for draw
+    }
+    
+    message.style.cssText += `
+      font-size: 48px;
+      margin-bottom: 30px;
+      text-shadow: 0 0 15px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.7)' : 'rgba(255, 82, 82, 0.7)'};
+      font-family: 'Arial', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      animation: pulse 1.5s infinite alternate;
+    `;
+    
+    // Create play again button
+    const playAgainButton = document.createElement('button');
+    playAgainButton.textContent = 'Play Again';
+    playAgainButton.style.cssText = `
+      padding: 15px 30px;
+      font-size: 20px;
+      background-color: ${isLocalPlayerWinner ? '#4CAF50' : '#FF5252'};
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Arial', sans-serif;
+      font-weight: bold;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 10px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 82, 82, 0.5)'};
+      margin-bottom: 20px;
+    `;
+    
+    // Button hover effect
+    playAgainButton.onmouseover = () => {
+      playAgainButton.style.transform = 'scale(1.1)';
+    };
+    
+    playAgainButton.onmouseout = () => {
+      playAgainButton.style.transform = 'scale(1)';
+    };
+    
+    // Add click event to play again button
+    playAgainButton.addEventListener('click', () => {
+      // Remove overlay
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      
+      // Reset game
+      eventBus.emit('game:reset', {});
+    });
+    
+    // Add animations if not already added
+    if (!document.getElementById('game-result-animations')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'game-result-animations';
+      styleEl.textContent = `
+        @keyframes fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+    
+    // Add elements to overlay
+    overlay.appendChild(message);
+    overlay.appendChild(playAgainButton);
+    
+    // Add overlay to body
+    document.body.appendChild(overlay);
+  }
   
   // Socket connection events
   eventBus.on('socket:disconnected', () => {

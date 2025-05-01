@@ -374,6 +374,77 @@ io.on('connection', (socket) => {
     console.log(`Broadcast powerup collection at (${data.x}, ${data.y}) by player ${socket.id}`);
   });
   
+  // Handle player hit events
+  socket.on('player_hit', (data) => {
+    console.log('Player hit event received:', data);
+    
+    // Check if we have the required data
+    if (!data.playerId) {
+      console.log('Missing required data for player hit');
+      return;
+    }
+    
+    // If the player exists in game state, reduce their lives
+    if (gameState.players[data.playerId]) {
+      // Reduce lives if not already at 0
+      if (gameState.players[data.playerId].lives > 0) {
+        gameState.players[data.playerId].lives -= 1;
+      }
+      
+      console.log(`Player ${data.playerId} hit, lives remaining: ${gameState.players[data.playerId].lives}`);
+      
+      // Check if player is eliminated (0 lives)
+      if (gameState.players[data.playerId].lives <= 0) {
+        // Mark player as not alive
+        gameState.players[data.playerId].isAlive = false;
+        
+        // Broadcast player elimination to all clients
+        io.emit('player:eliminated', {
+          playerId: data.playerId,
+          attackerId: data.attackerId || socket.id,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    // Broadcast player hit to all clients
+    io.emit('player:hit', {
+      playerId: data.playerId,
+      attackerId: data.attackerId || socket.id,
+      timestamp: Date.now()
+    });
+  });
+  
+  // Handle player elimination
+  socket.on('player_eliminated', (data) => {
+    console.log('Player eliminated event received:', data);
+    
+    // Check if we have the required data
+    if (!data.playerId) {
+      console.log('Missing required data for player elimination');
+      return;
+    }
+    
+    // If the player exists in game state, mark as eliminated
+    if (gameState.players[data.playerId]) {
+      // Mark player as not alive
+      gameState.players[data.playerId].isAlive = false;
+      gameState.players[data.playerId].lives = 0;
+      
+      console.log(`Player ${data.playerId} has been eliminated!`);
+      
+      // Check if game is over (only one player left)
+      checkGameOverCondition();
+    }
+    
+    // Broadcast player elimination to all clients
+    io.emit('player:eliminated', {
+      playerId: data.playerId,
+      attackerId: data.attackerId || socket.id,
+      timestamp: Date.now()
+    });
+  });
+  
   // Handle chat messages
   socket.on('chat', (data) => {
     // Broadcast chat message to all players
@@ -569,6 +640,59 @@ function endGame() {
     players: rankings,
     duration: 0 // Calculate actual duration in a real implementation
   });
+}
+
+// Check if game is over (only one player left alive)
+function checkGameOverCondition() {
+  if (!gameState.gameInProgress) return;
+  
+  // Count alive players
+  const alivePlayers = Object.values(gameState.players).filter(player => 
+    player.isAlive !== false && player.lives > 0
+  );
+  
+  console.log(`Checking game over condition: ${alivePlayers.length} players still alive`);
+  
+  // If only one player is left, they are the winner
+  if (alivePlayers.length === 1) {
+    const winner = alivePlayers[0];
+    console.log(`Game over! ${winner.nickname} is the last player standing!`);
+    
+    // Broadcast game ended event with winner
+    io.emit('game:ended', {
+      gameId: 'game1',
+      winner: {
+        id: winner.id,
+        nickname: winner.nickname,
+        score: winner.score || 0
+      },
+      players: [{
+        id: winner.id,
+        nickname: winner.nickname,
+        score: winner.score || 0,
+        rank: 1
+      }],
+      lastPlayerStanding: true
+    });
+    
+    // End the game
+    gameState.gameInProgress = false;
+  }
+  // If no players are left (everyone died), it's a draw
+  else if (alivePlayers.length === 0) {
+    console.log('Game over! No players remaining.');
+    
+    // Broadcast game ended event with no winner
+    io.emit('game:ended', {
+      gameId: 'game1',
+      winner: undefined,
+      players: [],
+      draw: true
+    });
+    
+    // End the game
+    gameState.gameInProgress = false;
+  }
 }
 
 // Check if all players are ready to start the game
