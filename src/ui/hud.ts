@@ -119,70 +119,90 @@ function addHUDStyles(): void {
   styleEl.id = 'game-hud-styles';
   styleEl.textContent = `
     .player-powerups {
-      background-color: rgba(0, 0, 0, 0.7);
-      border-radius: 8px;
-      padding: 10px;
-      color: white;
-      font-family: Arial, sans-serif;
-      min-width: 150px;
-      margin-bottom: 5px;
+      background-color: rgba(255, 158, 196, 0.8);
+      border: 3px solid #ff6bac;
+      border-radius: 15px;
+      padding: 12px;
+      color: #333333;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+      min-width: 160px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
     .player-powerups h3 {
-      margin: 0 0 8px 0;
-      font-size: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-      padding-bottom: 4px;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+      border-bottom: 2px dotted #ff6bac;
+      padding-bottom: 6px;
+      color: #333333;
     }
     
     .powerup-stat {
       display: flex;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
     
     .powerup-icon {
-      margin-right: 8px;
-      font-size: 16px;
+      margin-right: 10px;
+      font-size: 18px;
+      color: #ff6bac;
     }
     
     .powerup-value {
       font-weight: bold;
       margin-left: auto;
+      background-color: rgba(255, 255, 255, 0.6);
+      border-radius: 12px;
+      padding: 2px 8px;
+      min-width: 20px;
+      text-align: center;
     }
     
     .controls-indicator {
-      background-color: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-family: Arial, sans-serif;
+      background-color: rgba(255, 158, 196, 0.8);
+      border: 3px solid #ff6bac;
+      color: #333333;
+      padding: 12px;
+      border-radius: 15px;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
       font-size: 14px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
     .controls-indicator strong,
     .control-key {
       display: inline-block;
-      width: 20px;
-      height: 20px;
-      line-height: 20px;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
       text-align: center;
-      background-color: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
+      background-color: #a1d6e2;
+      color: #333333;
+      border-radius: 6px;
       margin-right: 5px;
       font-weight: bold;
-      font-family: monospace;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
     
     @keyframes powerup-highlight {
       0% { transform: scale(1); }
-      50% { transform: scale(1.2); color: yellow; }
+      50% { transform: scale(1.2); color: #ff6bac; background-color: #fff; }
       100% { transform: scale(1); }
     }
     
     .highlight {
       animation: powerup-highlight 0.5s ease-in-out;
     }
+    
+    /* Powerpuff Girls themed icons */
+    .icon-bomb:before { content: '💣'; }
+    .icon-flame:before { content: '🔥'; }
+    .icon-speed:before { content: '⚡'; }
+    .icon-heart:before { content: '❤️'; }
   `;
   
   document.head.appendChild(styleEl);
@@ -285,15 +305,31 @@ function showPauseOverlay(): void {
   `;
   
   // Create pause message
-  const pauseMessage = document.createElement('h1');
-  pauseMessage.textContent = 'GAME PAUSED';
-  pauseMessage.style.cssText = `
-    color: white;
-    font-size: 48px;
-    margin-bottom: 30px;
-    font-family: 'Arial', sans-serif;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  const messageBox = document.createElement('div');
+  messageBox.className = 'game-over';
+  messageBox.style.cssText = `
+    background-color: rgba(255, 158, 196, 0.9);
+    color: #333333;
+    padding: 30px;
+    border: 5px solid #ff6bac;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 500px;
+    box-shadow: 0 0 20px rgba(255, 107, 172, 0.6);
+    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
   `;
+  
+  // Create title
+  const title = document.createElement('h2');
+  title.style.cssText = `
+    margin-top: 0;
+    font-size: 32px;
+    color: #333333;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 0px #ffffff;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+  `;
+  title.textContent = 'Game Paused';
   
   // Create instructions
   const instructions = document.createElement('div');
@@ -301,13 +337,16 @@ function showPauseOverlay(): void {
   instructions.style.cssText = `
     color: white;
     font-size: 24px;
-    margin-bottom: 20px;
+    margin-bottom: 40px;
     font-family: 'Arial', sans-serif;
   `;
   
-  // Add elements to overlay
-  pauseOverlay.appendChild(pauseMessage);
-  pauseOverlay.appendChild(instructions);
+  // Add elements to message box
+  messageBox.appendChild(title);
+  messageBox.appendChild(instructions);
+  
+  // Add message box to overlay
+  pauseOverlay.appendChild(messageBox);
   
   // Add to body
   document.body.appendChild(pauseOverlay);
@@ -325,86 +364,120 @@ function hidePauseOverlay(): void {
 function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: number; speed: number; lives: number }): HTMLElement {
   const playerDiv = document.createElement('div');
   playerDiv.className = 'player-powerups';
-  playerDiv.dataset.playerId = playerId;
+  playerDiv.id = `player-powerups-${playerId}`;
   
-  // Don't show player header for local player since it's already shown in player-info div
-  const isLocalPlayer = playerId === localStorage.getItem('playerId');
-  if (!isLocalPlayer) {
-    // Player header for remote players
-    const header = document.createElement('h3');
-    header.textContent = `Player ${playerId}`;
-    playerDiv.appendChild(header);
+  // Get player nickname from localStorage or use default
+  let playerNickname = 'Player';
+  let characterColor = '#ff9ec4'; // Default Blossom color
+  
+  if (playerId === localStorage.getItem('playerId')) {
+    playerNickname = localStorage.getItem('playerNickname') || 'You';
+    // Assign a Powerpuff Girl character based on player ID
+    const playerIdNum = parseInt(playerId.replace(/\D/g, '')) || 0;
+    const characters = [
+      { name: 'Pharon', color: '#ff9ec4' },
+      { name: 'Mummy', color: '#a1d6e2' },
+      { name: 'Witch', color: '#bcee68' }
+    ];
+    const character = characters[playerIdNum % 3];
+    characterColor = character.color;
+    playerNickname = `${playerNickname} (${character.name})`;
   }
   
-  // Lives stat
-  const livesStat = document.createElement('div');
-  livesStat.className = 'powerup-stat';
-  livesStat.innerHTML = `
-    <span class="powerup-icon">❤️</span>
-    <span>Lives</span>
-    <span class="powerup-value">${powerups.lives}</span>
-  `;
-  playerDiv.appendChild(livesStat);
+  // Apply character color to the player HUD
+  playerDiv.style.borderColor = characterColor;
   
-  // Bomb stat
+  // Create player header with Powerpuff Girls styling
+  const header = document.createElement('h3');
+  header.textContent = playerNickname;
+  header.style.color = '#333333';
+  header.style.borderBottomColor = characterColor;
+  playerDiv.appendChild(header);
+  
+  // Create power-up stats with Powerpuff Girls styling
+  // Bombs
   const bombStat = document.createElement('div');
   bombStat.className = 'powerup-stat';
-  bombStat.innerHTML = `
-    <span class="powerup-icon">💣</span>
-    <span>Bombs</span>
-    <span class="powerup-value">${powerups.bombs}</span>
-  `;
+  
+  const bombIcon = document.createElement('span');
+  bombIcon.className = 'powerup-icon icon-bomb';
+  bombStat.appendChild(bombIcon);
+  
+  const bombLabel = document.createElement('span');
+  bombLabel.textContent = 'Bombs';
+  bombStat.appendChild(bombLabel);
+  
+  const bombValue = document.createElement('span');
+  bombValue.className = 'powerup-value';
+  bombValue.textContent = powerups.bombs.toString();
+  bombValue.id = `${playerId}-bombs`;
+  bombValue.style.borderColor = characterColor;
+  bombStat.appendChild(bombValue);
+  
   playerDiv.appendChild(bombStat);
   
-  // Flame stat
+  // Flames
   const flameStat = document.createElement('div');
   flameStat.className = 'powerup-stat';
-  flameStat.innerHTML = `
-    <span class="powerup-icon">🔥</span>
-    <span>Power</span>
-    <span class="powerup-value">${powerups.flames}</span>
-  `;
+  
+  const flameIcon = document.createElement('span');
+  flameIcon.className = 'powerup-icon icon-flame';
+  flameStat.appendChild(flameIcon);
+  
+  const flameLabel = document.createElement('span');
+  flameLabel.textContent = 'Flames';
+  flameStat.appendChild(flameLabel);
+  
+  const flameValue = document.createElement('span');
+  flameValue.className = 'powerup-value';
+  flameValue.textContent = powerups.flames.toString();
+  flameValue.id = `${playerId}-flames`;
+  flameValue.style.borderColor = characterColor;
+  flameStat.appendChild(flameValue);
+  
   playerDiv.appendChild(flameStat);
   
-  // Speed stat
+  // Speed
   const speedStat = document.createElement('div');
   speedStat.className = 'powerup-stat';
-  speedStat.innerHTML = `
-    <span class="powerup-icon">⚡</span>
-    <span>Speed</span>
-    <span class="powerup-value">${powerups.speed}</span>
-  `;
+  
+  const speedIcon = document.createElement('span');
+  speedIcon.className = 'powerup-icon icon-speed';
+  speedStat.appendChild(speedIcon);
+  
+  const speedLabel = document.createElement('span');
+  speedLabel.textContent = 'Speed';
+  speedStat.appendChild(speedLabel);
+  
+  const speedValue = document.createElement('span');
+  speedValue.className = 'powerup-value';
+  speedValue.textContent = powerups.speed.toString();
+  speedValue.id = `${playerId}-speed`;
+  speedValue.style.borderColor = characterColor;
+  speedStat.appendChild(speedValue);
+  
   playerDiv.appendChild(speedStat);
   
-  // Only add pause controls for the local player
-  if (playerId === localStorage.getItem('playerId')) {
-    // Add separator
-    const separator = document.createElement('div');
-    separator.style.cssText = `
-      height: 1px;
-      background-color: rgba(255, 255, 255, 0.3);
-      margin: 8px 0;
-    `;
-    playerDiv.appendChild(separator);
-    
-    // Add pause control
-    const pauseControl = document.createElement('div');
-    pauseControl.className = 'powerup-stat';
-    pauseControl.innerHTML = `
-      <span class="powerup-icon control-key">P</span>
-      <span>Pause Game</span>
-    `;
-    playerDiv.appendChild(pauseControl);
-    
-    // Add resume control
-    const resumeControl = document.createElement('div');
-    resumeControl.className = 'powerup-stat';
-    resumeControl.innerHTML = `
-      <span class="powerup-icon control-key">R</span>
-      <span>Resume Game</span>
-    `;
-    playerDiv.appendChild(resumeControl);
-  }
+  // Lives
+  const livesStat = document.createElement('div');
+  livesStat.className = 'powerup-stat';
+  
+  const livesIcon = document.createElement('span');
+  livesIcon.className = 'powerup-icon icon-heart';
+  livesStat.appendChild(livesIcon);
+  
+  const livesLabel = document.createElement('span');
+  livesLabel.textContent = 'Lives';
+  livesStat.appendChild(livesLabel);
+  
+  const livesValue = document.createElement('span');
+  livesValue.className = 'powerup-value';
+  livesValue.textContent = powerups.lives.toString();
+  livesValue.id = `${playerId}-lives`;
+  livesValue.style.borderColor = characterColor;
+  livesStat.appendChild(livesValue);
+  
+  playerDiv.appendChild(livesStat);
   
   return playerDiv;
 }
@@ -449,42 +522,31 @@ function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void
 
 // Show game over message
 function showGameOverMessage(playerId: string): void {
-  // Get player nickname if available
-  let playerNickname = playerId;
-  const playerElement = document.getElementById(`player-${playerId}`);
-  if (playerElement) {
-    const nameTagElement = playerElement.querySelector('div');
-    if (nameTagElement && nameTagElement.textContent) {
-      playerNickname = nameTagElement.textContent.replace(' (You)', '');
-    }
+  // Get player nickname from localStorage or use default
+  let playerNickname = 'Player';
+  
+  if (playerId === localStorage.getItem('playerId')) {
+    playerNickname = localStorage.getItem('playerNickname') || 'You';
   }
   
-  // Check if this is the local player
-  const isLocalPlayer = localStorage.getItem('playerId') === playerId;
-  
-  // Create game over overlay
+  // Create overlay with Powerpuff Girls theme
   const overlay = document.createElement('div');
-  overlay.className = 'game-over-overlay';
   overlay.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(255, 158, 196, 0.7);
     display: flex;
-    flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     z-index: 1000;
-    animation: fade-in 0.5s ease-in-out;
   `;
   
   // Create game over message
   const message = document.createElement('h1');
-  message.textContent = isLocalPlayer ? 
-    `GAME OVER - YOU LOST!` : 
-    `GAME OVER - ${playerNickname} ELIMINATED!`;
+  message.textContent = `Game Over - ${playerNickname} Eliminated!`;
   message.style.cssText = `
     color: #ff3333;
     font-size: 48px;
@@ -498,7 +560,7 @@ function showGameOverMessage(playerId: string): void {
   
   // Create lives message
   const livesMessage = document.createElement('div');
-  livesMessage.textContent = `No lives remaining`;
+  livesMessage.textContent = 'No lives remaining';
   livesMessage.style.cssText = `
     color: white;
     font-size: 24px;
@@ -506,37 +568,36 @@ function showGameOverMessage(playerId: string): void {
     font-family: 'Arial', sans-serif;
   `;
   
-  // Create restart button
-  const restartButton = document.createElement('button');
-  restartButton.textContent = 'Play Again';
-  restartButton.style.cssText = `
-    padding: 15px 30px;
-    font-size: 20px;
-    background-color: #ff3333;
+  // Create play again button with Powerpuff Girls theme
+  const playAgainButton = document.createElement('button');
+  playAgainButton.textContent = 'Play Again';
+  playAgainButton.style.cssText = `
+    background-color: #ff6bac;
     color: white;
     border: none;
-    border-radius: 5px;
+    padding: 12px 24px;
+    font-size: 18px;
     cursor: pointer;
-    font-family: 'Arial', sans-serif;
+    border-radius: 25px;
+    margin-right: 15px;
+    transition: all 0.3s;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
     font-weight: bold;
-    transition: all 0.2s ease;
-    box-shadow: 0 0 10px rgba(255, 51, 51, 0.5);
-    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   `;
   
-  // Button hover effect
-  restartButton.onmouseover = () => {
-    restartButton.style.transform = 'scale(1.1)';
-    restartButton.style.boxShadow = '0 0 20px rgba(255, 51, 51, 0.8)';
+  // Button hover effects with Powerpuff Girls theme
+  playAgainButton.onmouseover = () => {
+    playAgainButton.style.backgroundColor = '#ff4b8d';
+    playAgainButton.style.transform = 'scale(1.05)';
   };
-  
-  restartButton.onmouseout = () => {
-    restartButton.style.transform = 'scale(1)';
-    restartButton.style.boxShadow = '0 0 10px rgba(255, 51, 51, 0.5)';
+  playAgainButton.onmouseout = () => {
+    playAgainButton.style.backgroundColor = '#ff6bac';
+    playAgainButton.style.transform = 'scale(1)';
   };
   
   // Add click event to restart button
-  restartButton.addEventListener('click', () => {
+  playAgainButton.addEventListener('click', () => {
     // Remove overlay
     document.body.removeChild(overlay);
     
@@ -565,7 +626,7 @@ function showGameOverMessage(playerId: string): void {
   // Add elements to overlay
   overlay.appendChild(message);
   overlay.appendChild(livesMessage);
-  overlay.appendChild(restartButton);
+  overlay.appendChild(playAgainButton);
   
   // Add overlay to body
   document.body.appendChild(overlay);

@@ -7,6 +7,10 @@ import { eventBus } from '../framework/events';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
 import { initLobby } from './game/lobby';
+import { initEgyptTheme } from './ui/egyptTheme';
+
+// Import Egyptian theme CSS
+import './styles/egypt.css';
 
 // Connection state
 let isConnected = false;
@@ -25,14 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.style.overflow = 'hidden';
     document.body.style.width = '100vw';
     document.body.style.height = '100vh';
-    document.body.style.backgroundColor = '#1a1a1a';
+    // Egyptian theme background color
+    document.body.style.backgroundColor = '#f5e7c9';
     
     // Make container full-page
     app.style.width = '100vw';
     app.style.height = '100vh';
     app.style.position = 'relative';
     app.style.overflow = 'hidden';
-    app.style.backgroundColor = '#1a1a1a';
+    // Egyptian theme background color
+    app.style.backgroundColor = '#f5e7c9';
     
     // Initialize the game immediately (skipping the old lobby)
     initGame();
@@ -40,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the lobby directly from here
     // This ensures only one lobby is shown
     initLobby(app);
+    
+    // Initialize Egyptian Pyramid theme
+    initEgyptTheme(app);
     
     // Remove any existing chat buttons that might be showing
     const existingButton = document.querySelector('.chat-toggle');
