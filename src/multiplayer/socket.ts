@@ -318,7 +318,15 @@ function setupGameEventListeners(): void {
 
   // Game ended
   socket.on('game:ended', (data) => {
+    console.log('Game ended event received from server:', data);
     eventBus.emit('game:ended', data);
+  });
+
+  // Player eliminated
+  socket.on('player:eliminated', (data) => {
+    console.log('Player eliminated event received from server:', data);
+    // Forward to event bus
+    eventBus.emit('remote:player:eliminated', data);
   });
 }
 

@@ -232,10 +232,16 @@ export function updateHUD(): void {
   // Clear existing HUD
   hudContainer.innerHTML = '';
   
-  // Create player power-up displays
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
+  
+  // Create player power-up displays - only for the local player
   Object.entries(playerPowerUps).forEach(([playerId, powerups]) => {
-    const playerHUD = createPlayerHUD(playerId, powerups);
-    hudContainer!.appendChild(playerHUD);
+    // Only show HUD for the local player
+    if (playerId === localPlayerId) {
+      const playerHUD = createPlayerHUD(playerId, powerups);
+      hudContainer!.appendChild(playerHUD);
+    }
   });
 }
 
@@ -439,144 +445,86 @@ export function getPlayerPowerUps(playerId: string): { bombs: number; flames: nu
 function handlePlayerDamaged(data: { id: string; livesRemaining: number }): void {
   const { id, livesRemaining } = data;
   
-  // Initialize player power-ups if not exists
-  if (!playerPowerUps[id]) {
-    playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
-  }
+  // Get the local player ID
+  const localPlayerId = localStorage.getItem('playerId');
   
-  // Update lives count
-  playerPowerUps[id].lives = livesRemaining;
-  
-  // Update HUD
-  updateHUD();
-  
-  // Check if player is eliminated
-  if (livesRemaining <= 0) {
-    // Show game over message for the eliminated player
-    showGameOverMessage(id);
+  // Only update the HUD if this is the local player
+  if (id === localPlayerId) {
+    console.log(`Updating HUD for local player ${id} with lives: ${livesRemaining}`);
+    
+    // Initialize player power-ups if not exists
+    if (!playerPowerUps[id]) {
+      playerPowerUps[id] = { ...DEFAULT_POWER_UP_VALUES };
+    }
+    
+    // Update lives count
+    playerPowerUps[id].lives = livesRemaining;
+    
+    // Update HUD
+    updateHUD();
+    
+    // Check if player is eliminated
+    if (livesRemaining <= 0) {
+      // Show game over message for the eliminated player
+      showGameOverMessage(id);
+    }
+  } else {
+    console.log(`Not updating HUD for remote player ${id}`);
   }
 }
 
-// Show game over message
+// Show player elimination message (temporary notification, not full game over)
 function showGameOverMessage(playerId: string): void {
-  // Get player nickname if available
-  let playerNickname = playerId;
-  const playerElement = document.getElementById(`player-${playerId}`);
-  if (playerElement) {
-    const nameTagElement = playerElement.querySelector('div');
-    if (nameTagElement && nameTagElement.textContent) {
-      playerNickname = nameTagElement.textContent.replace(' (You)', '');
-    }
-  }
-  
-  // Check if this is the local player
+  // Only show for local player
   const isLocalPlayer = localStorage.getItem('playerId') === playerId;
+  if (!isLocalPlayer) return;
   
-  // Create game over overlay
-  const overlay = document.createElement('div');
-  overlay.className = 'game-over-overlay';
-  overlay.style.cssText = `
+  // Create elimination notification
+  const notification = document.createElement('div');
+  notification.className = 'player-eliminated-notification';
+  notification.style.cssText = `
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    animation: fade-in 0.5s ease-in-out;
-  `;
-  
-  // Create game over message
-  const message = document.createElement('h1');
-  message.textContent = isLocalPlayer ? 
-    `GAME OVER - YOU LOST!` : 
-    `GAME OVER - ${playerNickname} ELIMINATED!`;
-  message.style.cssText = `
-    color: #ff3333;
-    font-size: 48px;
-    margin-bottom: 30px;
-    text-shadow: 0 0 15px red;
-    font-family: 'Arial', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    animation: pulse 1.5s infinite alternate;
-  `;
-  
-  // Create lives message
-  const livesMessage = document.createElement('div');
-  livesMessage.textContent = `No lives remaining`;
-  livesMessage.style.cssText = `
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255, 0, 0, 0.8);
     color: white;
+    padding: 20px 40px;
+    border-radius: 10px;
+    font-family: 'Arial', sans-serif;
     font-size: 24px;
-    margin-bottom: 40px;
-    font-family: 'Arial', sans-serif;
-  `;
-  
-  // Create restart button
-  const restartButton = document.createElement('button');
-  restartButton.textContent = 'Play Again';
-  restartButton.style.cssText = `
-    padding: 15px 30px;
-    font-size: 20px;
-    background-color: #ff3333;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-family: 'Arial', sans-serif;
     font-weight: bold;
-    transition: all 0.2s ease;
-    box-shadow: 0 0 10px rgba(255, 51, 51, 0.5);
-    margin-bottom: 20px;
+    text-align: center;
+    z-index: 1000;
+    animation: fade-in-out 2s ease-in-out forwards;
+    pointer-events: none;
   `;
   
-  // Button hover effect
-  restartButton.onmouseover = () => {
-    restartButton.style.transform = 'scale(1.1)';
-    restartButton.style.boxShadow = '0 0 20px rgba(255, 51, 51, 0.8)';
-  };
-  
-  restartButton.onmouseout = () => {
-    restartButton.style.transform = 'scale(1)';
-    restartButton.style.boxShadow = '0 0 10px rgba(255, 51, 51, 0.5)';
-  };
-  
-  // Add click event to restart button
-  restartButton.addEventListener('click', () => {
-    // Remove overlay
-    document.body.removeChild(overlay);
-    
-    // Emit game reset event
-    eventBus.emit('game:reset', {});
-  });
+  // Set message
+  notification.textContent = 'YOU LOST! No lives remaining';
   
   // Add animations if not already added
-  if (!document.getElementById('game-over-animations')) {
+  if (!document.getElementById('player-eliminated-animations')) {
     const styleEl = document.createElement('style');
-    styleEl.id = 'game-over-animations';
+    styleEl.id = 'player-eliminated-animations';
     styleEl.textContent = `
-      @keyframes fade-in {
-        0% { opacity: 0; }
-        100% { opacity: 1; }
-      }
-      
-      @keyframes pulse {
-        0% { transform: scale(1); text-shadow: 0 0 15px red; }
-        100% { transform: scale(1.05); text-shadow: 0 0 25px red, 0 0 35px red; }
+      @keyframes fade-in-out {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
       }
     `;
     document.head.appendChild(styleEl);
   }
   
-  // Add elements to overlay
-  overlay.appendChild(message);
-  overlay.appendChild(livesMessage);
-  overlay.appendChild(restartButton);
+  // Add to body
+  document.body.appendChild(notification);
   
-  // Add overlay to body
-  document.body.appendChild(overlay);
+  // Remove after animation completes
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 2000);
 }
