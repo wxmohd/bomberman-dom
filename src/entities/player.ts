@@ -429,8 +429,13 @@ export class Player {
   
   // Check if a position is valid for movement
   private isValidPosition(x: number, y: number): boolean {
-    // Prevent going out of bounds
-    if (x < 1 || y < 1 || x >= 14 || y >= 14) {
+    // Define map dimensions - using constants directly
+    // The map is 15x17 (0-14 x 0-16)
+    const GRID_WIDTH = 14;
+    const GRID_HEIGHT = 16;
+    
+    // Prevent going out of bounds - allow movement to the full extent of the map
+    if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) {
       return false;
     }
     
@@ -438,13 +443,14 @@ export class Player {
     const gridX = Math.floor(x);
     const gridY = Math.floor(y);
     
-    // Check for fixed walls (grid pattern)
+    // Check for fixed walls (grid pattern) in all areas of the map
+    // Apply this rule to all rows including the bottom rows
     if (gridX % 2 === 0 && gridY % 2 === 0) {
       return false; // Wall at even coordinates
     }
     
-    // Check for border walls
-    if (gridX === 0 || gridY === 0 || gridX === 14 || gridY === 14) {
+    // Check for border walls - only the very edge is a wall
+    if (gridX === 0 || gridY === 0) {
       return false;
     }
     
@@ -754,9 +760,17 @@ export class Player {
     // Check if player is eliminated
     if (this.lives <= 0) {
       console.log(`Player ${this.id} (${this.nickname}) has been eliminated!`);
+      
+      // Emit local event for player elimination
       eventBus.emit('player:eliminated', {
         id: this.id,
         eliminatedBy: data.attackerId
+      });
+      
+      // Send player elimination to server for websocket synchronization
+      sendToServer('player_eliminated', {
+        playerId: this.id,
+        attackerId: data.attackerId
       });
     }
   }
@@ -1094,13 +1108,23 @@ export class Player {
   
   // Check if an explosion can reach this position
   private isValidExplosionPosition(x: number, y: number): boolean {
-    // Can't explode through walls
+    // Define map dimensions - using constants directly
+    const GRID_WIDTH = 14;
+    const GRID_HEIGHT = 16;
+    
+    // Can't explode outside the map boundaries
+    if (x < 0 || y < 0 || x > GRID_WIDTH || y > GRID_HEIGHT) {
+      return false;
+    }
+    
+    // Can't explode through fixed walls (grid pattern) in all areas of the map
+    // Apply this rule to all rows including the bottom rows
     if (x % 2 === 0 && y % 2 === 0) {
       return false; // Wall at even coordinates
     }
     
-    // Can't explode through border walls
-    if (x === 0 || y === 0 || x === 14 || y === 14) {
+    // Can't explode through border walls - only the very edge is a wall
+    if (x === 0 || y === 0) {
       return false;
     }
     

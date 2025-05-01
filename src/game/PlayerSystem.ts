@@ -68,6 +68,28 @@ export class PlayerSystem {
     // Remove player after a delay (to allow for animation)
     setTimeout(() => {
       this.removePlayer(data.id);
+      
+      // Check if only one player remains (game over condition)
+      if (this.getRemainingPlayerCount() === 1) {
+        // Get the last remaining player (winner)
+        const players = Array.from(this.players.values());
+        if (players.length === 1) {
+          const winner = players[0];
+          console.log(`Game over! ${winner.nickname} is the last player standing!`);
+          
+          // Emit game:ended event with winner information
+          eventBus.emit('game:ended', {
+            winner: {
+              id: winner.id,
+              nickname: winner.nickname
+            }
+          });
+        }
+      } else if (this.getRemainingPlayerCount() === 0) {
+        // No players left (draw)
+        console.log('Game over! No players remaining.');
+        eventBus.emit('game:ended', {});
+      }
     }, 1000);
   }
 
