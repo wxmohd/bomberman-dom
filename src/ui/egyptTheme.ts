@@ -93,7 +93,7 @@ function addBackgroundMusic(): void {
   volumeControl.style.cssText = `
     position: fixed;
     bottom: 20px;
-    right: 20px;
+    left: 20px;
     z-index: 1000;
     padding: 10px;
     background-color: rgba(126, 112, 83, 0.8);
