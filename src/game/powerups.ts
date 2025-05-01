@@ -84,15 +84,15 @@ export class PowerUp {
     this.createdAt = Date.now();
   }
   
-  // Get icon for power-up type
+  // Get icon image path for power-up type
   private getIcon(): string {
     switch (this.type) {
       case PowerUpType.BOMB:
-        return '💣';
+        return 'img/Bomb.png';
       case PowerUpType.FLAME:
-        return '🔥';
+        return 'img/Fire.png';
       case PowerUpType.SPEED:
-        return '⚡';
+        return 'img/Speed.png';
       default:
         return '?';
     }
@@ -129,7 +129,7 @@ export class PowerUp {
     this.element.setAttribute('data-type', this.type);
     
     const color = this.getColor();
-    const icon = this.getIcon();
+    const iconPath = this.getIcon();
     
     // Set styles directly
     this.element.style.position = 'absolute';
@@ -137,18 +137,34 @@ export class PowerUp {
     this.element.style.top = `${this.y * TILE_SIZE}px`; // Use full tile position
     this.element.style.width = `${TILE_SIZE}px`; // Use full tile size
     this.element.style.height = `${TILE_SIZE}px`; // Use full tile size
-    this.element.style.backgroundColor = color;
-    this.element.style.borderRadius = '50%';
+    this.element.style.backgroundColor = 'transparent'; // Transparent background to show image
     this.element.style.zIndex = '50';
     this.element.style.boxShadow = `0 0 10px ${color}, 0 0 15px ${color}`;
     this.element.style.display = 'flex';
     this.element.style.justifyContent = 'center';
     this.element.style.alignItems = 'center';
-    this.element.style.fontSize = `${TILE_SIZE / 2}px`;
     this.element.style.pointerEvents = 'none';
     
-    // Add text content
-    this.element.textContent = icon;
+    // Create and add image element
+    const imgElement = document.createElement('img');
+    imgElement.src = iconPath;
+    imgElement.alt = this.type;
+    imgElement.style.width = '80%';
+    imgElement.style.height = '80%';
+    imgElement.style.objectFit = 'contain';
+    imgElement.style.display = 'block';
+    imgElement.style.margin = 'auto';
+    imgElement.onerror = () => {
+      console.error(`Failed to load image: ${iconPath}`);
+      // Fallback to emoji if image fails to load
+      this.element!.textContent = this.type === PowerUpType.BOMB ? '💣' : 
+                                 this.type === PowerUpType.FLAME ? '🔥' : 
+                                 this.type === PowerUpType.SPEED ? '⚡' : '?';
+    };
+    this.element.appendChild(imgElement);
+    
+    // Log image path for debugging
+    console.log(`Loading powerup image: ${iconPath}`);
     
     // Add spawn animation
     this.element.style.animation = 'powerup-spawn 0.3s ease-out forwards, powerup-pulse 1s infinite alternate 0.3s';
@@ -171,46 +187,6 @@ export class PowerUp {
       // Change animation
       this.element.style.animation = 'powerup-collect 0.5s forwards';
       
-      // Create a floating notification
-      const notification = document.createElement('div');
-      notification.className = 'powerup-notification';
-      notification.textContent = `${this.getIcon()} +1`;
-      notification.style.cssText = `
-        position: absolute;
-        left: ${this.x * TILE_SIZE + TILE_SIZE / 2}px;
-        top: ${this.y * TILE_SIZE}px;
-        color: ${this.getColor()};
-        font-weight: bold;
-        font-size: 16px;
-        text-shadow: 0 0 3px white;
-        z-index: 10;
-        pointer-events: none;
-        animation: float-up 1.5s forwards;
-      `;
-      
-      // Add float-up animation if it doesn't exist
-      if (!document.getElementById('float-up-animation')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'float-up-animation';
-        styleEl.textContent = `
-          @keyframes float-up {
-            0% { transform: translateY(0); opacity: 1; }
-            100% { transform: translateY(-50px); opacity: 0; }
-          }
-        `;
-        document.head.appendChild(styleEl);
-      }
-      
-      // Add notification to the DOM
-      document.body.appendChild(notification);
-      
-      // Remove notification after animation
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 1500);
-      
       // Remove element after animation
       setTimeout(() => {
         if (this.element && this.element.parentNode) {
@@ -223,12 +199,9 @@ export class PowerUp {
       eventBus.emit('sound:play', { sound: 'powerup-collect' });
     }
     
-    // Emit power-up collected event with details
-    eventBus.emit('powerup:collected', { 
-      playerId, 
-      type: this.type,
-      position: { x: this.x, y: this.y }
-    });
+    // Note: We no longer emit powerup:collected event here to avoid duplicate events
+    // The event is already emitted in the player.ts file when the player collects the powerup
+    // This prevents the counter from increasing by 2 instead of 1
   }
   
   // Check if power-up is at specific coordinates
@@ -261,8 +234,8 @@ export function clearPowerUps(): void {
 
 // Spawn a power-up with a chance
 export function maybeSpawnPowerup(x: number, y: number): PowerUp | null {
-  // 15% chance to spawn a power-up (reduced to make them more rare)
-  const POWERUP_CHANCE = 0.15;
+  // 2% chance to spawn a power-up (significantly reduced to make them very rare)
+  const POWERUP_CHANCE = 0.02;
   
   // Check if there's already a power-up at this position
   const existingPowerup = activePowerUps.find(p => p.isAt(x, y));
@@ -356,5 +329,62 @@ export function checkAndCollectPowerUp(x: number, y: number, playerId: string): 
 
 // Render all active power-ups
 export function renderPowerUps(container: HTMLElement): void {
-  activePowerUps.forEach(powerup => powerup.render(container));
+  activePowerUps.forEach(powerUp => powerUp.render(container));
+}
+
+// Initialize powerup system with websocket support
+export function initPowerupSystem(): void {
+  // Setup event listeners for websocket events
+  setupPowerupEventListeners();
+  
+  console.log('Powerup system initialized with websocket support');
+}
+
+// Setup event listeners for powerup websocket events
+function setupPowerupEventListeners(): void {
+  // Listen for remote powerup spawned events
+  eventBus.on('remote:powerup:spawned', (data: { x: number, y: number, type: string }) => {
+    console.log(`Remote powerup spawned at (${data.x}, ${data.y}) with type ${data.type}`);
+    
+    // Convert server powerup type to local enum
+    let powerupType: PowerUpType;
+    switch (data.type) {
+      case 'BOMB':
+        powerupType = PowerUpType.BOMB;
+        break;
+      case 'FLAME':
+        powerupType = PowerUpType.FLAME;
+        break;
+      case 'SPEED':
+        powerupType = PowerUpType.SPEED;
+        break;
+      default:
+        powerupType = PowerUpType.BOMB; // Default fallback
+    }
+    
+    // Check if there's already a powerup at this position
+    const existingPowerup = activePowerUps.find(p => p.isAt(data.x, data.y));
+    if (existingPowerup) return;
+    
+    // Create and add the powerup
+    const powerup = new PowerUp(data.x, data.y, powerupType);
+    activePowerUps.push(powerup);
+  });
+  
+  // Listen for remote powerup collected events
+  eventBus.on('remote:powerup:collected', (data: { x: number, y: number, playerId: string }) => {
+    console.log(`Remote powerup collected at (${data.x}, ${data.y}) by player ${data.playerId}`);
+    
+    // Find the powerup at this position
+    const powerupIndex = activePowerUps.findIndex(p => p.isAt(data.x, data.y));
+    if (powerupIndex !== -1) {
+      const powerup = activePowerUps[powerupIndex];
+      
+      // Collect the powerup
+      powerup.collect(data.playerId);
+      
+      // Remove from active powerups
+      activePowerUps.splice(powerupIndex, 1);
+    }
+  });
 }

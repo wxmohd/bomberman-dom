@@ -6,7 +6,12 @@ import { initChatUI } from './ui/chatUI';
 import { eventBus } from '../framework/events';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
+import { TILE_SIZE } from './game/constants';
 import { initLobby } from './game/lobby';
+import { initEgyptTheme } from './ui/egyptTheme';
+
+// Import Egyptian theme CSS
+import './styles/egypt.css';
 
 // Connection state
 let isConnected = false;
@@ -25,14 +30,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.style.overflow = 'hidden';
     document.body.style.width = '100vw';
     document.body.style.height = '100vh';
-    document.body.style.backgroundColor = '#1a1a1a';
+    // Egyptian theme background color
+    document.body.style.backgroundColor = '#f5e7c9';
     
     // Make container full-page
     app.style.width = '100vw';
     app.style.height = '100vh';
     app.style.position = 'relative';
     app.style.overflow = 'hidden';
-    app.style.backgroundColor = '#1a1a1a';
+    // Egyptian theme background color
+    app.style.backgroundColor = '#f5e7c9';
     
     // Initialize the game immediately (skipping the old lobby)
     initGame();
@@ -40,6 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the lobby directly from here
     // This ensures only one lobby is shown
     initLobby(app);
+    
+    // Initialize Egyptian Pyramid theme
+    initEgyptTheme(app);
     
     // Remove any existing chat buttons that might be showing
     const existingButton = document.querySelector('.chat-toggle');
@@ -198,6 +208,117 @@ function setupEventListeners(): void {
     });
   });
   
+  // Remote powerup spawned - update game state
+  socket.on('powerup:spawned', (data: { x: number, y: number, type: string }) => {
+    console.log('Received powerup:spawned event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:spawned', data);
+    
+    // Also directly call the powerup spawning function to ensure it's created
+    import('./game/powerups').then(powerupModule => {
+      // Convert server powerup type to local enum
+      let powerupType;
+      switch (data.type) {
+        case 'BOMB':
+          powerupType = powerupModule.PowerUpType.BOMB;
+          break;
+        case 'FLAME':
+          powerupType = powerupModule.PowerUpType.FLAME;
+          break;
+        case 'SPEED':
+          powerupType = powerupModule.PowerUpType.SPEED;
+          break;
+        default:
+          powerupType = powerupModule.PowerUpType.BOMB; // Default fallback
+      }
+      
+      // Create a new powerup at the specified location
+      const powerup = new powerupModule.PowerUp(data.x, data.y, powerupType);
+      
+      // Get the map container and render the powerup
+      import('./game/renderer').then(rendererModule => {
+        const container = rendererModule.getMapContainer();
+        if (container) {
+          powerup.render(container);
+          console.log(`Rendered remote powerup at (${data.x}, ${data.y}) with type ${data.type}`);
+        }
+      });
+    }).catch(error => {
+      console.error('Failed to spawn remote powerup:', error);
+    });
+  });
+  
+  // Remote powerup collected - update game state
+  socket.on('powerup:collected', (data: { powerupId: string, playerId: string, type: string, x: number, y: number }) => {
+    console.log('Received powerup:collected event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:collected', data);
+    
+    // Also directly handle the powerup collection to ensure it's removed
+    import('./game/powerups').then(powerupModule => {
+      // Find and remove the powerup at this position
+      const activePowerUps = powerupModule.getActivePowerUps();
+      const powerupIndex = activePowerUps.findIndex(p => p.isAt(data.x, data.y));
+      
+      if (powerupIndex !== -1) {
+        const powerup = activePowerUps[powerupIndex];
+        console.log(`Found powerup to collect at (${data.x}, ${data.y})`);
+        
+        // Collect the powerup
+        powerup.collect(data.playerId);
+        console.log(`Remote powerup collected by player ${data.playerId}`);
+      } else {
+        console.log(`No powerup found at position (${data.x}, ${data.y}) to collect`);
+        
+        // If we didn't find the powerup in the activePowerUps array, try to find it directly in the DOM
+        // This is a fallback for cases where the powerup might be in the DOM but not tracked in our array
+        const powerupElements = document.querySelectorAll('.powerup');
+        console.log(`Searching through ${powerupElements.length} powerup DOM elements`);
+        
+        powerupElements.forEach((el) => {
+          const powerupEl = el as HTMLElement;
+          const left = parseInt(powerupEl.style.left) / TILE_SIZE;
+          const top = parseInt(powerupEl.style.top) / TILE_SIZE;
+          
+          if (Math.floor(left) === data.x && Math.floor(top) === data.y) {
+            console.log(`Found powerup in DOM at position (${data.x}, ${data.y})`);
+            
+            // Add collection animation to the powerup
+            powerupEl.style.animation = 'powerup-collect 0.5s forwards';
+            
+            // Remove the powerup element after animation
+            setTimeout(() => {
+              if (powerupEl.parentNode) {
+                powerupEl.parentNode.removeChild(powerupEl);
+              }
+            }, 500);
+          }
+        });
+      }
+    }).catch(error => {
+      console.error('Failed to handle remote powerup collection:', error);
+    });
+  });
+  
+  // Remote player hit event from server
+  socket.on('player:hit', (data: { playerId: string, attackerId: string, timestamp: number }) => {
+    console.log('Received player:hit event from server:', data);
+    
+    // Forward to event bus for player system to handle
+    // Only forward if this is not the local player (local player already handled the hit)
+    const localPlayerId = localStorage.getItem('playerId');
+    
+    // We still emit the event for the local player if they were hit by another player
+    // This ensures the life count is synchronized properly
+    if (data.playerId !== localPlayerId || data.attackerId !== localPlayerId) {
+      console.log(`Forwarding remote player hit event: Player ${data.playerId} hit by ${data.attackerId}`);
+      eventBus.emit('player:hit', {
+        playerId: data.playerId,
+        attackerId: data.attackerId
+      });
+    }
+  });
+  
   // Player joined event
   eventBus.on('player:joined', (data: { id: string, nickname: string }) => {
     // Add system message
@@ -236,18 +357,149 @@ function setupEventListeners(): void {
     eventBus.emit('game:start', data);
   });
   
-  // Game ended
+  // Game ended - only triggered when the game is truly over (only one player remains)
   eventBus.on('game:ended', (data) => {
+    console.log('Game ended event received:', data);
+    
     // Add system message
     if (data.winner) {
       addSystemMessage(`Game over! ${data.winner.nickname} wins!`);
+      
+      // Check if this is the local player who won
+      const isLocalPlayerWinner = data.winner.id === playerId;
+      
+      // Show game won message for the winner and game over for others
+      showGameResult(data.winner.nickname, isLocalPlayerWinner, data.lastPlayerStanding);
     } else {
       addSystemMessage('Game over!');
+      
+      // Show game over message for everyone
+      showGameResult(null, false, false);
     }
     
     // End game
     eventBus.emit('game:end', data);
   });
+  
+  // Handle remote player elimination (from server)
+  eventBus.on('remote:player:eliminated', (data) => {
+    console.log('Remote player eliminated event received:', data);
+    // We don't need to show any UI here, as the server will send game:ended
+    // when the game is truly over (only one player remains)
+  });
+  
+  // Function to show game result (win/lose) with appropriate UI
+  function showGameResult(winnerNickname: string | null, isLocalPlayerWinner: boolean, lastPlayerStanding: boolean): void {
+    // Create overlay for game result
+    const overlay = document.createElement('div');
+    overlay.className = 'game-result-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      animation: fade-in 0.5s ease;
+    `;
+    
+    // Create message
+    const message = document.createElement('h1');
+    
+    if (isLocalPlayerWinner) {
+      // Local player won
+      message.textContent = lastPlayerStanding ? 
+        'YOU WON! LAST PLAYER STANDING!' : 
+        'YOU WON THE GAME!';
+      message.style.color = '#4CAF50'; // Green for winner
+    } else if (winnerNickname) {
+      // Someone else won
+      message.textContent = `GAME OVER! ${winnerNickname} WINS!`;
+      message.style.color = '#FF5252'; // Red for loser
+    } else {
+      // No winner (draw)
+      message.textContent = 'GAME OVER! NO WINNER!';
+      message.style.color = '#FF9800'; // Orange for draw
+    }
+    
+    message.style.cssText += `
+      font-size: 48px;
+      margin-bottom: 30px;
+      text-shadow: 0 0 15px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.7)' : 'rgba(255, 82, 82, 0.7)'};
+      font-family: 'Arial', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      animation: pulse 1.5s infinite alternate;
+    `;
+    
+    // Create play again button
+    const playAgainButton = document.createElement('button');
+    playAgainButton.textContent = 'Play Again';
+    playAgainButton.style.cssText = `
+      padding: 15px 30px;
+      font-size: 20px;
+      background-color: ${isLocalPlayerWinner ? '#4CAF50' : '#FF5252'};
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Arial', sans-serif;
+      font-weight: bold;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 10px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 82, 82, 0.5)'};
+      margin-bottom: 20px;
+    `;
+    
+    // Button hover effect
+    playAgainButton.onmouseover = () => {
+      playAgainButton.style.transform = 'scale(1.1)';
+    };
+    
+    playAgainButton.onmouseout = () => {
+      playAgainButton.style.transform = 'scale(1)';
+    };
+    
+    // Add click event to play again button
+    playAgainButton.addEventListener('click', () => {
+      // Remove overlay
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      
+      // Reset game
+      eventBus.emit('game:reset', {});
+    });
+    
+    // Add animations if not already added
+    if (!document.getElementById('game-result-animations')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'game-result-animations';
+      styleEl.textContent = `
+        @keyframes fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+    
+    // Add elements to overlay
+    overlay.appendChild(message);
+    overlay.appendChild(playAgainButton);
+    
+    // Add overlay to body
+    document.body.appendChild(overlay);
+  }
   
   // Socket connection events
   eventBus.on('socket:disconnected', () => {

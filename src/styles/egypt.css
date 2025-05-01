@@ -1,0 +1,205 @@
+/* Egyptian Pyramid Theme CSS */
+:root {
+  /* Egyptian color palette */
+  --egypt-sand: #e4c49b;
+  --egypt-gold: #d4af37;
+  --egypt-stone: #7e7053;
+  --egypt-dark-stone: #4a4233;
+  --egypt-blue: #74acdf;
+  --egypt-red: #c23b22;
+  --egypt-black: #1a1a1a;
+  --egypt-white: #f5f5f5;
+  
+  /* UI elements */
+  --egypt-background: #f5e7c9;
+  --egypt-panel-bg: rgba(126, 112, 83, 0.8);
+  --egypt-panel-border: #d4af37;
+  --egypt-text: #4a4233;
+  --egypt-highlight: #c23b22;
+}
+
+body {
+  background: var(--egypt-background);
+  color: var(--egypt-text);
+  font-family: 'Papyrus', 'Copperplate', fantasy;
+  margin: 0;
+  padding: 0;
+  background-image: url('/img/background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Game board styling */
+.game-board {
+  border: 8px solid var(--egypt-gold);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+}
+
+/* Wall and block styling */
+.wall {
+  background-color: var(--egypt-dark-stone) !important;
+  border: 2px solid #3a3426 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 8px #2a261c !important;
+  background-image: url('/img/wall (2).png') !important;
+  background-size: cover !important;
+}
+
+.block {
+  background-color: var(--egypt-sand) !important;
+  border: 2px solid #c4a67b !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 8px #d4b48b !important;
+  background-image: url('/img/Random.png') !important;
+  background-size: cover !important;
+}
+
+/* Player styling */
+.player {
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* HUD styling */
+.player-powerups {
+  background-color: var(--egypt-panel-bg) !important;
+  border: 3px solid var(--egypt-panel-border) !important;
+  border-radius: 0 !important;
+  color: var(--egypt-white) !important;
+  font-family: 'Papyrus', 'Copperplate', fantasy !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.player-powerups h3 {
+  color: var(--egypt-gold) !important;
+  border-bottom: 2px solid var(--egypt-panel-border) !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+}
+
+.powerup-stat {
+  margin-bottom: 8px !important;
+}
+
+.powerup-icon {
+  color: var(--egypt-gold) !important;
+  font-size: 18px !important;
+}
+
+/* Bomb styling */
+.bomb {
+  background-color: var(--egypt-black) !important;
+  border: 2px solid var(--egypt-gold) !important;
+  border-radius: 50% !important;
+}
+
+/* Explosion styling */
+.explosion {
+  background-color: rgba(194, 59, 34, 0.7) !important;
+  border-radius: 0 !important;
+}
+
+/* Powerup styling */
+.powerup {
+  border-radius: 0 !important;
+  box-shadow: 0 0 10px var(--egypt-gold) !important;
+}
+
+/* Lobby styling */
+.lobby-container {
+  background-color: var(--egypt-panel-bg) !important;
+  border: 4px solid var(--egypt-panel-border) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.lobby-title {
+  color: var(--egypt-gold) !important;
+  font-family: 'Papyrus', 'Copperplate', fantasy !important;
+  font-size: 28px !important;
+  text-shadow: 2px 2px 0px var(--egypt-black);
+}
+
+.lobby-button {
+  background-color: var(--egypt-gold) !important;
+  color: var(--egypt-black) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-family: 'Papyrus', 'Copperplate', fantasy !important;
+  font-weight: bold !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.lobby-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Chat UI styling */
+.chat-container {
+  background-color: var(--egypt-panel-bg) !important;
+  border: 3px solid var(--egypt-panel-border) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chat-header {
+  background-color: var(--egypt-dark-stone) !important;
+  color: var(--egypt-gold) !important;
+  border-radius: 0 !important;
+}
+
+.chat-messages {
+  background-color: rgba(245, 231, 201, 0.8) !important;
+}
+
+.chat-input {
+  border: 2px solid var(--egypt-panel-border) !important;
+  border-radius: 0 !important;
+  font-family: 'Papyrus', 'Copperplate', fantasy !important;
+}
+
+.chat-send-button {
+  background-color: var(--egypt-gold) !important;
+  color: var(--egypt-black) !important;
+  border-radius: 0 !important;
+}
+
+/* Animation for blocks */
+@keyframes block-destroy {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+/* Animation for powerups */
+@keyframes powerup-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.powerup {
+  animation: powerup-pulse 1s infinite;
+}
+
+/* Game over screen */
+.game-over {
+  background-color: var(--egypt-panel-bg) !important;
+  border: 5px solid var(--egypt-panel-border) !important;
+  border-radius: 0 !important;
+  color: var(--egypt-white) !important;
+  font-family: 'Papyrus', 'Copperplate', fantasy !important;
+}
