@@ -368,8 +368,13 @@ function setupEventListeners(): void {
       // Check if this is the local player who won
       const isLocalPlayerWinner = data.winner.id === playerId;
       
+      // Check if this is a special case where a player won by killing the last opponent
+      // but was also eliminated in the process (lastManKill)
+      const isLastManKill = data.lastManKill === true;
+      
       // Show game won message for the winner and game over for others
-      showGameResult(data.winner.nickname, isLocalPlayerWinner, data.lastPlayerStanding);
+      // In lastManKill case, we still want to show the winner even if they died too
+      showGameResult(data.winner.nickname, isLocalPlayerWinner, data.lastPlayerStanding || isLastManKill);
     } else {
       addSystemMessage('Game over!');
       
