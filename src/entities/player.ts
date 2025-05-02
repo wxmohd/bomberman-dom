@@ -145,6 +145,25 @@ export class Player {
     this.emitPositionUpdate();
   }
   
+  // Remove the player's visual element from the DOM
+  public removePlayerElement(): void {
+    // Remove player element from DOM if it exists
+    if (this.playerElement && this.playerElement.parentNode) {
+      // Add a fade-out animation
+      this.playerElement.style.transition = 'opacity 0.5s';
+      this.playerElement.style.opacity = '0';
+      
+      // Remove the element after animation completes
+      setTimeout(() => {
+        if (this.playerElement && this.playerElement.parentNode) {
+          this.playerElement.parentNode.removeChild(this.playerElement);
+          this.playerElement = null;
+          this.nameTagElement = null;
+        }
+      }, 500);
+    }
+  }
+  
   // Create the player's visual element
   private createPlayerElement(container: HTMLElement): void {
     console.log(`Creating player element for player ${this.id} (${this.nickname}) at position ${this.x},${this.y}`);
@@ -744,6 +763,9 @@ export class Player {
     // Check if player is eliminated
     if (this.lives <= 0) {
       console.log(`Player ${this.id} (${this.nickname}) has been eliminated!`);
+      
+      // Remove player's visual element immediately
+      this.removePlayerElement();
       
       // Emit local event for player elimination
       eventBus.emit('player:eliminated', {
