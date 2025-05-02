@@ -217,9 +217,11 @@ function renderLoginScreen(container: HTMLElement): void {
     justify-content: center;
     width: 100%;
     height: 100%;
-    background-color: #1a1a1a;
-    color: white;
-    font-family: Arial, sans-serif;
+    background-image: url('/img/MapBack.png');
+    background-size: cover;
+    background-position: center;
+    color: #f5f5f5;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create title
@@ -228,8 +230,9 @@ function renderLoginScreen(container: HTMLElement): void {
   title.style.cssText = `
     font-size: 3rem;
     margin-bottom: 2rem;
-    color: #f44336;
-    text-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create nickname input
@@ -241,6 +244,10 @@ function renderLoginScreen(container: HTMLElement): void {
     margin-bottom: 2rem;
     width: 100%;
     max-width: 400px;
+    background-color: rgba(126, 112, 83, 0.8);
+    padding: 20px;
+    border: 4px solid #d4af37;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   `;
   
   const inputLabel = document.createElement('label');
@@ -249,6 +256,9 @@ function renderLoginScreen(container: HTMLElement): void {
     font-size: 1.2rem;
     margin-bottom: 0.5rem;
     align-self: flex-start;
+    color: #d4af37;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    font-weight: bold;
   `;
   
   const input = document.createElement('input');
@@ -258,11 +268,12 @@ function renderLoginScreen(container: HTMLElement): void {
     width: 100%;
     padding: 1rem;
     font-size: 1.2rem;
-    border: none;
+    border: 2px solid #d4af37;
     border-radius: 4px;
-    background-color: #333;
-    color: white;
+    background-color: rgba(74, 66, 51, 0.9);
+    color: #f5f5f5;
     margin-bottom: 1rem;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create join button
@@ -271,12 +282,16 @@ function renderLoginScreen(container: HTMLElement): void {
   joinButton.style.cssText = `
     padding: 1rem 2rem;
     font-size: 1.2rem;
-    background-color: #4CAF50;
-    color: white;
+    background-color: #d4af37;
+    color: #4a4233;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     width: 100%;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    font-weight: bold;
+    transition: all 0.2s;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3);
   `;
   
   joinButton.addEventListener('click', () => {
@@ -341,9 +356,6 @@ function joinGame(nickname: string, container: HTMLElement): void {
     createChatButton();
   }, 1000); // Longer delay to ensure everything is loaded
 }
-    
-// Check if we need to start a countdown timer
-
 
 // Render the waiting room
 function renderWaitingRoom(container: HTMLElement): void {
@@ -364,9 +376,25 @@ function renderWaitingRoom(container: HTMLElement): void {
     justify-content: center;
     width: 100%;
     height: 100%;
-    background-color: #1a1a1a;
-    color: white;
-    font-family: Arial, sans-serif;
+    background-image: url('/img/MapBack.png');
+    background-size: cover;
+    background-position: center;
+    color: #f5f5f5;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+  `;
+  
+  // Create content container with beige background
+  const contentContainer = document.createElement('div');
+  contentContainer.style.cssText = `
+    background-color: rgba(255, 243, 224, 0.9);
+    padding: 2rem;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%;
+    max-width: 800px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
   `;
   
   // Create title
@@ -375,8 +403,9 @@ function renderWaitingRoom(container: HTMLElement): void {
   title.style.cssText = `
     font-size: 3rem;
     margin-bottom: 1rem;
-    color: #f44336;
-    text-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    font-family: 'Papyrus', 'Copperplate', fantasy;
   `;
   
   // Create player count
@@ -421,7 +450,7 @@ function renderWaitingRoom(container: HTMLElement): void {
     font-size: 1.5rem;
     margin-bottom: 1rem;
     text-align: center;
-    color: white;
+    color: black;
   `;
   
   // Create player list
@@ -441,8 +470,13 @@ function renderWaitingRoom(container: HTMLElement): void {
       justify-content: space-between;
       align-items: center;
       padding: 0.75rem 1rem;
-      background-color: #333;
-      border-radius: 4px;
+      background-color: rgba(210, 180, 140, 0.85);
+      border: 2px solid #d4af37;
+      border-radius: 8px;
+      color: #5D4037;
+      margin-bottom: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      background-image: linear-gradient(to right, rgba(210, 180, 140, 0.85), rgba(245, 222, 179, 0.85));
     `;
     
     // Player name and color
@@ -461,16 +495,64 @@ function renderWaitingRoom(container: HTMLElement): void {
       height: 16px;
       border-radius: 50%;
       background-color: ${player.color};
+      border: 2px solid #d4af37;
     `;
+    
+    // Assign Egyptian title based on player number
+    const playerNumber = player.playerNumber || players.indexOf(player) + 1;
+    const egyptianTitles = ['Pharaoh', 'Mummy', 'Anubis', 'Sphinx'];
+    const egyptianTitle = egyptianTitles[(playerNumber - 1) % egyptianTitles.length];
     
     // Player name
     const playerName = document.createElement('span');
-    playerName.textContent = player.id === currentPlayerId ? `${player.nickname} (You)` : player.nickname;
+    playerName.style.cssText = `
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      font-size: 1.1rem;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    `;
+    
+    // Set player name with Egyptian title
+    if (player.id === currentPlayerId) {
+      playerName.textContent = `${egyptianTitle} ${player.nickname} (You)`;
+    } else {
+      playerName.textContent = `${egyptianTitle} ${player.nickname}`;
+    }
     
     playerInfo.appendChild(colorIndicator);
     playerInfo.appendChild(playerName);
     
+    // Add character icon on the right
+    const characterIcon = document.createElement('div');
+    characterIcon.style.cssText = `
+      width: 32px;
+      height: 32px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    `;
+    
+    // Set character icon based on Egyptian title
+    switch (egyptianTitle) {
+      case 'Pharaoh':
+        characterIcon.innerHTML = '👑';
+        characterIcon.style.fontSize = '24px';
+        break;
+      case 'Mummy':
+        characterIcon.innerHTML = '🧟';
+        characterIcon.style.fontSize = '24px';
+        break;
+      case 'Anubis':
+        characterIcon.innerHTML = '🐺';
+        characterIcon.style.fontSize = '24px';
+        break;
+      case 'Sphinx':
+        characterIcon.innerHTML = '🦁';
+        characterIcon.style.fontSize = '24px';
+        break;
+    }
+    
     playerItem.appendChild(playerInfo);
+    playerItem.appendChild(characterIcon);
     playerList.appendChild(playerItem);
   });
   
@@ -509,10 +591,13 @@ function renderWaitingRoom(container: HTMLElement): void {
   }
   
   // Add elements to container
-  waitingRoomContainer.appendChild(title);
-  waitingRoomContainer.appendChild(playerCount);
-  waitingRoomContainer.appendChild(timerElement);
-  waitingRoomContainer.appendChild(playerListContainer);
+  contentContainer.appendChild(title);
+  contentContainer.appendChild(playerCount);
+  contentContainer.appendChild(timerElement);
+  contentContainer.appendChild(playerListContainer);
+  
+  // Add content container to waiting room
+  waitingRoomContainer.appendChild(contentContainer);
   
   // Add waiting room to container
   container.appendChild(waitingRoomContainer);
@@ -566,7 +651,7 @@ function renderWaitingRoom(container: HTMLElement): void {
     });
     
     // Add button to container
-    waitingRoomContainer.appendChild(startButton);
+    contentContainer.appendChild(startButton);
     
     timerElement.textContent = 'You can start the game now!';
   } else if (players.length >= 2 && players.length < 4) {

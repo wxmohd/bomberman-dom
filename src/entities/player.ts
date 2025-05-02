@@ -148,36 +148,27 @@ export class Player {
     playerEl.style.width = `${TILE_SIZE}px`;
     playerEl.style.height = `${TILE_SIZE}px`;
     
-    // Set player color based on player number
-    const playerColors = [
-      '#FF5252', // Red (Player 1)
-      '#4CAF50', // Green (Player 2)
-      '#2196F3', // Blue (Player 3)
-      '#FFC107'  // Yellow (Player 4)
+    // Player character images based on player number
+    const playerImages = [
+      '/img/IK.png',  // Player 1
+      '/img/MMD.png', // Player 2
+      '/img/WA.png',  // Player 3
+      '/img/MG.png'   // Player 4
     ];
-    const colorIndex = (this.playerNumber - 1) % playerColors.length;
-    const playerColor = playerColors[colorIndex];
+    const imageIndex = (this.playerNumber - 1) % playerImages.length;
+    const playerImage = playerImages[imageIndex];
     
-    playerEl.style.backgroundColor = playerColor;
-    playerEl.style.borderRadius = '50%';
+    // Set background image instead of color
+    playerEl.style.backgroundImage = `url(${playerImage})`;
+    playerEl.style.backgroundSize = 'contain';
+    playerEl.style.backgroundPosition = 'center';
+    playerEl.style.backgroundRepeat = 'no-repeat';
+    playerEl.style.backgroundColor = 'transparent';
     playerEl.style.zIndex = '1000';
-    playerEl.style.boxShadow = `0 0 15px 5px ${playerColor}80`; // Add semi-transparent glow matching player color
-    playerEl.style.border = '2px solid white';
     playerEl.style.boxSizing = 'border-box';
     playerEl.style.transition = 'left 0.1s, top 0.1s';
     
     console.log(`Player element created:`, playerEl);
-    
-    // Add inner element for better visibility
-    const innerElement = document.createElement('div');
-    innerElement.style.position = 'absolute';
-    innerElement.style.width = '60%';
-    innerElement.style.height = '60%';
-    innerElement.style.top = '20%';
-    innerElement.style.left = '20%';
-    innerElement.style.backgroundColor = 'white';
-    innerElement.style.borderRadius = '50%';
-    playerEl.appendChild(innerElement);
     
     // Add name tag
     const nameTag = document.createElement('div');
@@ -221,42 +212,7 @@ export class Player {
       }
     }, 500);
     
-    // Add CSS for player animations
-    if (!document.getElementById('player-animations')) {
-      const style = document.createElement('style');
-      style.id = 'player-animations';
-      style.textContent = `
-        @keyframes player-pulse {
-          0% { transform: scale(1); box-shadow: 0 0 15px 5px rgba(255,0,0,0.7); }
-          100% { transform: scale(1.1); box-shadow: 0 0 20px 8px rgba(255,0,0,0.9); }
-        }
-        
-        @keyframes player-hit {
-          0% { transform: scale(1); background-color: inherit; }
-          50% { transform: scale(1.2); background-color: red; }
-          100% { transform: scale(1); background-color: inherit; }
-        }
-        
-        .player.local {
-          animation: player-pulse 0.8s infinite alternate;
-        }
-        
-        .player.invulnerable {
-          opacity: 0.7;
-          animation: player-pulse 0.3s infinite alternate;
-        }
-        
-        .player.hit {
-          animation: player-hit 0.5s ease-in-out;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Add local player class if this is the local player
-    if (this.isLocalPlayer()) {
-      playerEl.classList.add('local');
-    }
+    // No animations for player characters to keep the original images clean
   }
   
   // Update the visual position of the player
@@ -584,13 +540,27 @@ export class Player {
           const notification = document.createElement('div');
           notification.className = 'powerup-notification';
           
-          // Get the icon based on power-up type
-          let icon = '?';
-          if (powerUpType === 'bomb') icon = '💣';
-          if (powerUpType === 'flame') icon = '🔥';
-          if (powerUpType === 'speed') icon = '⚡';
+          // Create icon element based on power-up type
+          let iconElement = document.createElement('span');
           
-          notification.textContent = `${icon} +1`;
+          if (powerUpType === 'bomb') {
+            const bombImg = document.createElement('img');
+            bombImg.src = '/img/Bomb.png';
+            bombImg.style.width = '20px';
+            bombImg.style.height = '20px';
+            bombImg.style.verticalAlign = 'middle';
+            iconElement.appendChild(bombImg);
+          } else if (powerUpType === 'flame') {
+            iconElement.textContent = '🔥';
+          } else if (powerUpType === 'speed') {
+            iconElement.textContent = '⚡';
+          } else {
+            iconElement.textContent = '?';
+          }
+          
+          // Add the icon and text
+          notification.appendChild(iconElement);
+          notification.appendChild(document.createTextNode(' +1'));
           notification.style.cssText = `
             position: absolute;
             left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
@@ -902,7 +872,6 @@ export class Player {
       transform: translateX(-50%);
       width: 4px;
       height: 10px;
-      background-color: #FF4500;
       z-index: 801;
     `;
     bomb.appendChild(fuse);
@@ -1088,19 +1057,19 @@ export class Player {
           100% { transform: scale(0); opacity: 0; }
         }
         
-        @keyframes green-space-appear {
-          0% { transform: scale(0); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        // @keyframes green-space-appear {
+        //   0% { transform: scale(0); opacity: 0; }
+        //   100% { transform: scale(1); opacity: 1; }
+        // }
         
         @keyframes powerup-spawn-indicator {
           0% { transform: scale(0); opacity: 1; }
           100% { transform: scale(2); opacity: 0; }
         }
         
-        .green-space {
-          animation: green-space-appear 0.3s forwards;
-        }
+        // .green-space {
+        //   animation: green-space-appear 0.3s forwards;
+        // }
       `;
       document.head.appendChild(style);
     }
@@ -1195,20 +1164,20 @@ export class Player {
         // Animate block destruction
         blockEl.style.animation = 'block-destroy 0.5s forwards';
         
-        // Create a green space where the block was
-        const greenSpace = document.createElement('div');
-        greenSpace.className = 'green-space';
-        greenSpace.style.position = 'absolute';
-        greenSpace.style.left = blockEl.style.left;
-        greenSpace.style.top = blockEl.style.top;
-        greenSpace.style.width = `${TILE_SIZE}px`;
-        greenSpace.style.height = `${TILE_SIZE}px`;
-        greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
-        greenSpace.style.zIndex = '5'; // Below player but above background
+        // Create an empty space where the block was
+        const emptySpace = document.createElement('div');
+        emptySpace.className = 'empty-space';
+        emptySpace.style.position = 'absolute';
+        emptySpace.style.left = blockEl.style.left;
+        emptySpace.style.top = blockEl.style.top;
+        emptySpace.style.width = `${TILE_SIZE}px`;
+        emptySpace.style.height = `${TILE_SIZE}px`;
+        emptySpace.style.backgroundColor = 'transparent'; // Transparent background
+        emptySpace.style.zIndex = '5'; // Below player but above background
         
-        // Add green space to the game container
+        // Add empty space to the game container
         if (this.gameContainer) {
-          this.gameContainer.appendChild(greenSpace);
+          this.gameContainer.appendChild(emptySpace);
         }
         
         // Remove block after animation

@@ -37,15 +37,13 @@ export function initHUD(): void {
     // Create the HUD container immediately at default position
     hudContainer = document.createElement('div');
     hudContainer.id = 'game-hud';
-    hudContainer.style.cssText = `
-      position: fixed;
-      top: 80px;
-      left: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 100;
-    `;
+    hudContainer.style.position = 'fixed';
+    hudContainer.style.top = '80px';
+    hudContainer.style.left = '10px';
+    hudContainer.style.display = 'flex';
+    hudContainer.style.flexDirection = 'column';
+    hudContainer.style.gap = '10px';
+    hudContainer.style.zIndex = '100';
     document.body.appendChild(hudContainer);
     
     // Add HUD styles
@@ -71,8 +69,6 @@ export function initHUD(): void {
     updateHUD();
   }
 }
-
-
 
 // Initialize event listeners
 function initEventListeners(): void {
@@ -119,70 +115,90 @@ function addHUDStyles(): void {
   styleEl.id = 'game-hud-styles';
   styleEl.textContent = `
     .player-powerups {
-      background-color: rgba(0, 0, 0, 0.7);
-      border-radius: 8px;
-      padding: 10px;
-      color: white;
-      font-family: Arial, sans-serif;
-      min-width: 150px;
-      margin-bottom: 5px;
+      background-color: rgba(255, 158, 196, 0.8);
+      border: 3px solid #ff6bac;
+      border-radius: 15px;
+      padding: 12px;
+      color: #333333;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+      min-width: 160px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
     .player-powerups h3 {
-      margin: 0 0 8px 0;
-      font-size: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-      padding-bottom: 4px;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+      border-bottom: 2px dotted #ff6bac;
+      padding-bottom: 6px;
+      color: #333333;
     }
     
     .powerup-stat {
       display: flex;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
     
     .powerup-icon {
-      margin-right: 8px;
-      font-size: 16px;
+      margin-right: 10px;
+      font-size: 18px;
+      color: #ff6bac;
     }
     
     .powerup-value {
       font-weight: bold;
       margin-left: auto;
+      background-color: rgba(255, 255, 255, 0.6);
+      border-radius: 12px;
+      padding: 2px 8px;
+      min-width: 20px;
+      text-align: center;
     }
     
     .controls-indicator {
-      background-color: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-family: Arial, sans-serif;
+      background-color: rgba(255, 158, 196, 0.8);
+      border: 3px solid #ff6bac;
+      color: #333333;
+      padding: 12px;
+      border-radius: 15px;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
       font-size: 14px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
     .controls-indicator strong,
     .control-key {
       display: inline-block;
-      width: 20px;
-      height: 20px;
-      line-height: 20px;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
       text-align: center;
-      background-color: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
+      background-color: #a1d6e2;
+      color: #333333;
+      border-radius: 6px;
       margin-right: 5px;
       font-weight: bold;
-      font-family: monospace;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
     
     @keyframes powerup-highlight {
       0% { transform: scale(1); }
-      50% { transform: scale(1.2); color: yellow; }
+      50% { transform: scale(1.2); color: #ff6bac; background-color: #fff; }
       100% { transform: scale(1); }
     }
     
     .highlight {
       animation: powerup-highlight 0.5s ease-in-out;
     }
+    
+    /* Powerpuff Girls themed icons */
+    .icon-bomb:before { content: '💣'; }
+    .icon-flame:before { content: '🔥'; }
+    .icon-speed:before { content: '⚡'; }
+    .icon-heart:before { content: '❤️'; }
   `;
   
   document.head.appendChild(styleEl);
@@ -286,44 +302,52 @@ function showPauseOverlay(): void {
   // Create pause overlay
   pauseOverlay = document.createElement('div');
   pauseOverlay.className = 'pause-overlay';
-  pauseOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-  `;
+  pauseOverlay.style.position = 'fixed';
+  pauseOverlay.style.top = '0';
+  pauseOverlay.style.left = '0';
+  pauseOverlay.style.width = '100%';
+  pauseOverlay.style.height = '100%';
+  pauseOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  pauseOverlay.style.display = 'flex';
+  pauseOverlay.style.flexDirection = 'column';
+  pauseOverlay.style.justifyContent = 'center';
   
-  // Create pause message
-  const pauseMessage = document.createElement('h1');
-  pauseMessage.textContent = 'GAME PAUSED';
-  pauseMessage.style.cssText = `
-    color: white;
-    font-size: 48px;
-    margin-bottom: 30px;
-    font-family: 'Arial', sans-serif;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-  `;
+  // Create message box
+  const messageBox = document.createElement('div');
+  messageBox.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+  messageBox.style.padding = '20px';
+  messageBox.style.borderRadius = '10px';
+  messageBox.style.border = '3px solid #d4af37';
+  messageBox.style.textAlign = 'center';
+  messageBox.style.maxWidth = '500px';
+  messageBox.style.display = 'flex';
+  messageBox.style.flexDirection = 'column';
+  messageBox.style.justifyContent = 'center';
+  
+  // Create title
+  const title = document.createElement('h2');
+  title.style.color = '#f5e7c1';
+  title.style.fontSize = '24px';
+  title.style.marginTop = '5px';
+  title.style.marginBottom = '10px';
+  title.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  title.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.5)';
+  title.textContent = 'Game Paused';
   
   // Create instructions
-  const instructions = document.createElement('div');
+  const instructions = document.createElement('p');
+  instructions.style.color = '#d4af37';
+  instructions.style.fontSize = '16px';
+  instructions.style.marginTop = '10px';
+  instructions.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
   instructions.textContent = 'Press R to resume';
-  instructions.style.cssText = `
-    color: white;
-    font-size: 24px;
-    margin-bottom: 20px;
-    font-family: 'Arial', sans-serif;
-  `;
   
-  // Add elements to overlay
-  pauseOverlay.appendChild(pauseMessage);
-  pauseOverlay.appendChild(instructions);
+  // Add elements to message box
+  messageBox.appendChild(title);
+  messageBox.appendChild(instructions);
+  
+  // Add message box to overlay
+  pauseOverlay.appendChild(messageBox);
   
   // Add to body
   document.body.appendChild(pauseOverlay);
@@ -341,88 +365,139 @@ function hidePauseOverlay(): void {
 function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: number; speed: number; lives: number }): HTMLElement {
   const playerDiv = document.createElement('div');
   playerDiv.className = 'player-powerups';
-  playerDiv.dataset.playerId = playerId;
+  playerDiv.id = `player-powerups-${playerId}`;
   
-  // Don't show player header for local player since it's already shown in player-info div
-  const isLocalPlayer = playerId === localStorage.getItem('playerId');
-  if (!isLocalPlayer) {
-    // Player header for remote players
-    const header = document.createElement('h3');
-    header.textContent = `Player ${playerId}`;
-    playerDiv.appendChild(header);
-  }
-  
-  // Lives stat
-  const livesStat = document.createElement('div');
-  livesStat.className = 'powerup-stat';
-  livesStat.innerHTML = `
-    <span class="powerup-icon">❤️</span>
-    <span>Lives</span>
-    <span class="powerup-value">${powerups.lives}</span>
+  // Apply enhanced Egyptian theme styling
+  playerDiv.style.cssText = `
+    background-color: rgba(210, 180, 140, 0.9);
+    border: 3px solid #d4af37;
+    border-radius: 10px;
+    padding: 15px;
+    color: #5D4037;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    min-width: 180px;
+    margin-bottom: 15px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+    background-image: linear-gradient(rgba(210, 180, 140, 0.9), rgba(245, 222, 179, 0.9));
   `;
-  playerDiv.appendChild(livesStat);
   
-  // Bomb stat
-  const bombStat = document.createElement('div');
-  bombStat.className = 'powerup-stat';
-  bombStat.innerHTML = `
-    <span class="powerup-icon">💣</span>
-    <span>Bombs</span>
-    <span class="powerup-value">${powerups.bombs}</span>
-  `;
-  playerDiv.appendChild(bombStat);
+  // Get player nickname from localStorage or use default
+  let playerNickname = 'Player';
+  let characterTitle = 'Mummy';
+  let characterColor = '#d4af37';
   
-  // Flame stat
-  const flameStat = document.createElement('div');
-  flameStat.className = 'powerup-stat';
-  flameStat.innerHTML = `
-    <span class="powerup-icon">🔥</span>
-    <span>Power</span>
-    <span class="powerup-value">${powerups.flames}</span>
-  `;
-  playerDiv.appendChild(flameStat);
-  
-  // Speed stat
-  const speedStat = document.createElement('div');
-  speedStat.className = 'powerup-stat';
-  speedStat.innerHTML = `
-    <span class="powerup-icon">⚡</span>
-    <span>Speed</span>
-    <span class="powerup-value">${powerups.speed}</span>
-  `;
-  playerDiv.appendChild(speedStat);
-  
-  // Only add pause controls for the local player
   if (playerId === localStorage.getItem('playerId')) {
-    // Add separator
-    const separator = document.createElement('div');
-    separator.style.cssText = `
-      height: 1px;
-      background-color: rgba(255, 255, 255, 0.3);
-      margin: 8px 0;
-    `;
-    playerDiv.appendChild(separator);
-    
-    // Add pause control
-    const pauseControl = document.createElement('div');
-    pauseControl.className = 'powerup-stat';
-    pauseControl.innerHTML = `
-      <span class="powerup-icon control-key">P</span>
-      <span>Pause Game</span>
-    `;
-    playerDiv.appendChild(pauseControl);
-    
-    // Add resume control
-    const resumeControl = document.createElement('div');
-    resumeControl.className = 'powerup-stat';
-    resumeControl.innerHTML = `
-      <span class="powerup-icon control-key">R</span>
-      <span>Resume Game</span>
-    `;
-    playerDiv.appendChild(resumeControl);
+    playerNickname = localStorage.getItem('playerNickname') || 'You';
+    // Assign an Egyptian character based on player ID
+    const playerIdNum = parseInt(playerId.replace(/\D/g, '')) || 0;
+    const characters = [
+      { name: 'Pharaoh', color: '#d4af37' },
+      { name: 'Mummy', color: '#d4af37' },
+      { name: 'Anubis', color: '#d4af37' },
+      { name: 'Sphinx', color: '#d4af37' }
+    ];
+    const character = characters[playerIdNum % 4];
+    characterTitle = character.name;
+    characterColor = character.color;
+    playerNickname = `${playerNickname} (${characterTitle})`;
   }
+  
+  // Create player header with enhanced Egyptian styling
+  const header = document.createElement('h3');
+  header.textContent = playerNickname;
+  header.style.cssText = `
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    font-weight: bold;
+    color: #5D4037;
+    border-bottom: 2px solid #d4af37;
+    padding-bottom: 8px;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  `;
+  playerDiv.appendChild(header);
+  
+  // Create stat container with Egyptian styling
+  const statsContainer = document.createElement('div');
+  statsContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  `;
+  
+  // Create power-up stats with Egyptian styling
+  // Bombs
+  const bombStat = createStatRow('Bombs', powerups.bombs, `${playerId}-bombs`);
+  statsContainer.appendChild(bombStat);
+  
+  // Flames
+  const flameStat = createStatRow('Flames', powerups.flames, `${playerId}-flames`);
+  // Add heart icon for flames
+  const heartIcon = document.createElement('span');
+  heartIcon.innerHTML = '❤️';
+  heartIcon.style.marginLeft = '5px';
+  heartIcon.style.fontSize = '14px';
+  flameStat.querySelector('.stat-label')?.appendChild(heartIcon);
+  statsContainer.appendChild(flameStat);
+  
+  // Speed
+  const speedStat = createStatRow('Speed', powerups.speed, `${playerId}-speed`);
+  statsContainer.appendChild(speedStat);
+  
+  // Lives
+  const livesStat = createStatRow('Lives', powerups.lives, `${playerId}-lives`);
+  statsContainer.appendChild(livesStat);
+  
+  playerDiv.appendChild(statsContainer);
   
   return playerDiv;
+}
+
+// Helper function to create stat rows with Egyptian styling
+function createStatRow(label: string, value: number, id: string): HTMLElement {
+  const statRow = document.createElement('div');
+  statRow.className = 'powerup-stat';
+  statRow.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background-color: rgba(245, 222, 179, 0.5);
+    border-radius: 6px;
+    border-left: 4px solid #d4af37;
+  `;
+  
+  const statLabel = document.createElement('span');
+  statLabel.className = 'stat-label';
+  statLabel.textContent = label;
+  statLabel.style.cssText = `
+    color: #5D4037;
+    font-weight: bold;
+    font-size: 16px;
+    text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.2);
+  `;
+  statRow.appendChild(statLabel);
+  
+  const statValue = document.createElement('span');
+  statValue.className = 'powerup-value';
+  statValue.textContent = value.toString();
+  statValue.id = id;
+  statValue.style.cssText = `
+    font-weight: bold;
+    background-color: #d4af37;
+    color: #5D4037;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    font-size: 16px;
+  `;
+  statRow.appendChild(statValue);
+  
+  return statRow;
 }
 
 // Reset all power-ups
@@ -479,52 +554,170 @@ function showGameOverMessage(playerId: string): void {
   const isLocalPlayer = localStorage.getItem('playerId') === playerId;
   if (!isLocalPlayer) return;
   
-  // Create elimination notification
-  const notification = document.createElement('div');
-  notification.className = 'player-eliminated-notification';
-  notification.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(255, 0, 0, 0.8);
-    color: white;
-    padding: 20px 40px;
-    border-radius: 10px;
-    font-family: 'Arial', sans-serif;
-    font-size: 24px;
-    font-weight: bold;
-    text-align: center;
-    z-index: 1000;
-    animation: fade-in-out 2s ease-in-out forwards;
-    pointer-events: none;
-  `;
+  // Get player nickname
+  let playerNickname = localStorage.getItem('playerNickname') || 'You';
   
-  // Set message
-  notification.textContent = 'YOU LOST! No lives remaining';
+  // Create overlay with Egyptian theme
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = '1000';
+  overlay.style.animation = 'fade-in 0.5s ease-in';
+  
+  // Create message box with Egyptian theme
+  const messageBox = document.createElement('div');
+  messageBox.style.backgroundColor = 'rgba(126, 112, 83, 0.95)';
+  messageBox.style.border = '4px solid #d4af37';
+  messageBox.style.borderRadius = '10px';
+  messageBox.style.padding = '30px 40px';
+  messageBox.style.maxWidth = '500px';
+  messageBox.style.textAlign = 'center';
+  messageBox.style.boxShadow = '0 0 20px rgba(212, 175, 55, 0.5)';
+  messageBox.style.position = 'relative';
+  messageBox.style.animation = 'message-box-animation 0.5s ease-out';
+  
+  // Add Egyptian decorative elements to the box
+  const topDecoration = document.createElement('div');
+  topDecoration.style.position = 'absolute';
+  topDecoration.style.top = '-15px';
+  topDecoration.style.left = '0';
+  topDecoration.style.width = '100%';
+  topDecoration.style.textAlign = 'center';
+  topDecoration.style.fontSize = '24px';
+  topDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
+  topDecoration.style.color = '#d4af37';
+  messageBox.appendChild(topDecoration);
+  
+  const bottomDecoration = document.createElement('div');
+  bottomDecoration.style.position = 'absolute';
+  bottomDecoration.style.bottom = '-15px';
+  bottomDecoration.style.left = '0';
+  bottomDecoration.style.width = '100%';
+  bottomDecoration.style.textAlign = 'center';
+  bottomDecoration.style.fontSize = '24px';
+  bottomDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
+  bottomDecoration.style.color = '#d4af37';
+  messageBox.appendChild(bottomDecoration);
+  
+  // Create game over message
+  const message = document.createElement('h1');
+  message.textContent = `Game Over`;
+  message.style.color = '#d4af37';
+  message.style.fontSize = '42px';
+  message.style.margin = '0 0 20px 0';
+  message.style.textShadow = '0 0 10px rgba(245, 231, 193, 0.5)';
+  message.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  message.style.textTransform = 'uppercase';
+  message.style.letterSpacing = '2px';
+  message.style.animation = 'pulse 1.5s infinite alternate';
+  messageBox.appendChild(message);
+  
+  // Create player eliminated message
+  const playerMessage = document.createElement('h2');
+  playerMessage.textContent = `${playerNickname} Eliminated!`;
+  playerMessage.style.color = '#f5e7c1';
+  playerMessage.style.fontSize = '28px';
+  playerMessage.style.margin = '0 0 30px 0';
+  playerMessage.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  messageBox.appendChild(playerMessage);
+  
+  // Create lives message
+  const livesMessage = document.createElement('div');
+  livesMessage.textContent = 'No lives remaining';
+  livesMessage.style.color = '#f5e7c1';
+  livesMessage.style.fontSize = '20px';
+  livesMessage.style.marginBottom = '30px';
+  livesMessage.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  messageBox.appendChild(livesMessage);
+  
+  // Create hieroglyphic decoration
+  const hieroglyphics = document.createElement('div');
+  hieroglyphics.style.fontSize = '24px';
+  hieroglyphics.style.color = '#d4af37';
+  hieroglyphics.style.margin = '15px 0';
+  hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
+  messageBox.appendChild(hieroglyphics);
+  
+  // Create play again button with Egyptian theme
+  const playAgainButton = document.createElement('button');
+  playAgainButton.textContent = 'Play Again';
+  playAgainButton.style.backgroundColor = '#d4af37';
+  playAgainButton.style.color = '#000';
+  playAgainButton.style.border = 'none';
+  playAgainButton.style.padding = '12px 30px';
+  playAgainButton.style.fontSize = '18px';
+  playAgainButton.style.cursor = 'pointer';
+  playAgainButton.style.borderRadius = '5px';
+  playAgainButton.style.margin = '10px 0';
+  playAgainButton.style.transition = 'all 0.3s';
+  playAgainButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  playAgainButton.style.fontWeight = 'bold';
+  playAgainButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+  messageBox.appendChild(playAgainButton);
+  
+  // Button hover effects with Egyptian theme
+  playAgainButton.onmouseover = () => {
+    playAgainButton.style.backgroundColor = '#f5e7c1';
+    playAgainButton.style.transform = 'scale(1.05)';
+  };
+  playAgainButton.onmouseout = () => {
+    playAgainButton.style.backgroundColor = '#d4af37';
+    playAgainButton.style.transform = 'scale(1)';
+  };
+  
+  // Add click event to restart button
+  playAgainButton.addEventListener('click', () => {
+    // Remove overlay
+    document.body.removeChild(overlay);
+    
+    // Emit game reset event
+    eventBus.emit('game:reset', {});
+  });
   
   // Add animations if not already added
-  if (!document.getElementById('player-eliminated-animations')) {
+  if (!document.getElementById('game-over-animations')) {
     const styleEl = document.createElement('style');
-    styleEl.id = 'player-eliminated-animations';
+    styleEl.id = 'game-over-animations';
     styleEl.textContent = `
-      @keyframes fade-in-out {
-        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-        20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-        80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      @keyframes fade-in {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+      }
+      
+      @keyframes message-box-animation {
+        0% { opacity: 0; transform: scale(0.8); }
+        70% { opacity: 1; transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      
+      @keyframes pulse {
+        0% { transform: scale(1); text-shadow: 0 0 10px rgba(245, 231, 193, 0.5); }
+        100% { transform: scale(1.03); text-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 30px rgba(245, 231, 193, 0.5); }
       }
     `;
     document.head.appendChild(styleEl);
   }
   
-  // Add to body
-  document.body.appendChild(notification);
+  // Add message box to overlay
+  overlay.appendChild(messageBox);
   
-  // Remove after animation completes
+  // Add overlay to body
+  document.body.appendChild(overlay);
+  
+  // Auto-remove after a delay if user doesn't click Play Again
+  // This is optional - you can remove this if you want the user to explicitly click Play Again
+  /*
   setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
+    if (overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
     }
-  }, 2000);
+  }, 10000); // 10 seconds
+  */
 }
