@@ -307,8 +307,8 @@ io.on('connection', (socket) => {
       playerId: socket.id
     });
     
-    // Determine if a power-up should spawn (5% chance - reduced to make powerups more rare)
-    const POWERUP_CHANCE = 0.02;
+    // Determine if a power-up should spawn (3% chance - making powerups very rare and special)
+    const POWERUP_CHANCE = 0.05;
     if (Math.random() < POWERUP_CHANCE) {
       // Determine power-up type with weighted probability
       // Bomb: 40%, Flame: 30%, Speed: 30%
@@ -441,7 +441,30 @@ io.on('connection', (socket) => {
     io.emit('player:eliminated', {
       playerId: data.playerId,
       attackerId: data.attackerId || socket.id,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isSelfElimination: data.playerId === data.attackerId // Flag to indicate self-elimination
+    });
+  });
+  
+  // Handle direct player elimination (special case for self-elimination)
+  socket.on('PLAYER_ELIMINATED', (data) => {
+    console.log('Direct player elimination event received:', data);
+    
+    if (!data.playerId) {
+      console.log('Missing required data for direct player elimination');
+      return;
+    }
+    
+    // Force broadcast the elimination event to all clients
+    // This is a special case for self-elimination to ensure it's properly synchronized
+    console.log(`Broadcasting forced elimination for player ${data.playerId}`);
+    
+    io.emit('player:eliminated', {
+      playerId: data.playerId,
+      attackerId: data.attackerId || data.playerId,
+      timestamp: Date.now(),
+      isSelfElimination: true,
+      forceBroadcast: true
     });
   });
   
