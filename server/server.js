@@ -417,7 +417,7 @@ io.on('connection', (socket) => {
   
   // Handle player elimination
   socket.on('player_eliminated', (data) => {
-    console.log('Player eliminated event received:', data);
+    console.log('Player elimination event received:', data);
     
     // Check if we have the required data
     if (!data.playerId) {
@@ -425,24 +425,34 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Store the attacker ID for winner determination
+    const attackerId = data.attackerId || socket.id;
+    
     // If the player exists in game state, mark as eliminated
     if (gameState.players[data.playerId]) {
       // Mark player as not alive
       gameState.players[data.playerId].isAlive = false;
       gameState.players[data.playerId].lives = 0;
       
-      console.log(`Player ${data.playerId} has been eliminated!`);
+      console.log(`Player ${data.playerId} has been eliminated by ${attackerId}!`);
+      
+      // Track the last elimination in the game state
+      gameState.lastElimination = {
+        eliminatedPlayerId: data.playerId,
+        attackerId: attackerId,
+        timestamp: Date.now()
+      };
       
       // Check if game is over (only one player left)
-      checkGameOverCondition();
+      checkGameOverCondition(attackerId);
     }
     
     // Broadcast player elimination to all clients
     io.emit('player:eliminated', {
       playerId: data.playerId,
-      attackerId: data.attackerId || socket.id,
+      attackerId: attackerId,
       timestamp: Date.now(),
-      isSelfElimination: data.playerId === data.attackerId // Flag to indicate self-elimination
+      isSelfElimination: data.playerId === attackerId // Flag to indicate self-elimination
     });
   });
   
@@ -673,7 +683,7 @@ function endGame() {
 }
 
 // Check if game is over (only one player left alive)
-function checkGameOverCondition() {
+function checkGameOverCondition(lastAttackerId) {
   if (!gameState.gameInProgress) return;
   
   // Count alive players
@@ -686,7 +696,7 @@ function checkGameOverCondition() {
   // If only one player is left, they are the winner
   if (alivePlayers.length === 1) {
     const winner = alivePlayers[0];
-    console.log(`Game over! ${winner.nickname} is the last player standing!`);
+    console.log(`Game over! ${winner.nickname} is the last player standing with ${winner.lives} lives remaining!`);
     
     // Broadcast game ended event with winner
     io.emit('game:ended', {
@@ -694,7 +704,8 @@ function checkGameOverCondition() {
       winner: {
         id: winner.id,
         nickname: winner.nickname,
-        score: winner.score || 0
+        score: winner.score || 0,
+        lives: winner.lives
       },
       players: [{
         id: winner.id,
@@ -708,8 +719,43 @@ function checkGameOverCondition() {
     // End the game
     gameState.gameInProgress = false;
   }
-  // If no players are left (everyone died), it's a draw
+  // If no players are left, check if we can determine a winner from the last elimination
   else if (alivePlayers.length === 0) {
+    // Check if we have a last attacker ID and it's different from the eliminated player
+    if (lastAttackerId && gameState.lastElimination && 
+        gameState.lastElimination.eliminatedPlayerId !== lastAttackerId) {
+      
+      // Try to find the attacker in the game state
+      const attacker = gameState.players[lastAttackerId];
+      
+      if (attacker) {
+        console.log(`Game over! ${attacker.nickname} won by eliminating the last opponent!`);
+        
+        // Broadcast game ended event with the attacker as winner
+        io.emit('game:ended', {
+          gameId: 'game1',
+          winner: {
+            id: attacker.id,
+            nickname: attacker.nickname,
+            score: attacker.score || 0,
+            lives: 0 // They've been eliminated too, but they're still the winner
+          },
+          players: [{
+            id: attacker.id,
+            nickname: attacker.nickname,
+            score: attacker.score || 0,
+            rank: 1
+          }],
+          lastPlayerStanding: false,
+          lastManKill: true
+        });
+        
+        // End the game
+        gameState.gameInProgress = false;
+        return;
+      }
+    }
+    
     console.log('Game over! No players remaining.');
     
     // Broadcast game ended event with no winner
