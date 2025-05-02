@@ -65,32 +65,39 @@ export class PlayerSystem {
 
   // Handle player elimination
   private handlePlayerElimination(data: { id: string, eliminatedBy: string }): void {
-    // Remove player after a delay (to allow for animation)
-    setTimeout(() => {
-      this.removePlayer(data.id);
-      
-      // Check if only one player remains (game over condition)
-      if (this.getRemainingPlayerCount() === 1) {
-        // Get the last remaining player (winner)
-        const players = Array.from(this.players.values());
-        if (players.length === 1) {
-          const winner = players[0];
-          console.log(`Game over! ${winner.nickname} is the last player standing!`);
-          
-          // Emit game:ended event with winner information
-          eventBus.emit('game:ended', {
-            winner: {
-              id: winner.id,
-              nickname: winner.nickname
-            }
-          });
-        }
-      } else if (this.getRemainingPlayerCount() === 0) {
-        // No players left (draw)
-        console.log('Game over! No players remaining.');
-        eventBus.emit('game:ended', {});
+    // Get the player that was eliminated
+    const player = this.players.get(data.id);
+    
+    // Check if only one player remains (game over condition) after this elimination
+    // We do this check before removing the player from our map
+    const willHaveOnePlayerRemaining = this.getRemainingPlayerCount() === 2;
+    const willHaveNoPlayersRemaining = this.getRemainingPlayerCount() === 1;
+    
+    // Remove player immediately - the visual element is already removed in the Player class
+    this.removePlayer(data.id);
+    
+    // Check game over conditions
+    if (willHaveOnePlayerRemaining) {
+      // Get the last remaining player (winner)
+      const players = Array.from(this.players.values());
+      if (players.length === 1) {
+        const winner = players[0];
+        console.log(`Game over! ${winner.nickname} is the last player standing!`);
+        
+        // Emit game:ended event with winner information
+        eventBus.emit('game:ended', {
+          winner: {
+            id: winner.id,
+            nickname: winner.nickname
+          },
+          lastPlayerStanding: true
+        });
       }
-    }, 1000);
+    } else if (willHaveNoPlayersRemaining) {
+      // No players left (draw)
+      console.log('Game over! No players remaining.');
+      eventBus.emit('game:ended', {});
+    }
   }
 
   // Get all players

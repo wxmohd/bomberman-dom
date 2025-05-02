@@ -377,8 +377,9 @@ function setupEventListeners(): void {
       showGameResult(null, false, false);
     }
     
-    // End game
+    // End game and trigger game over state
     eventBus.emit('game:end', data);
+    eventBus.emit('game:over', data);
   });
   
   // Handle remote player elimination (from server)
@@ -388,9 +389,9 @@ function setupEventListeners(): void {
     // when the game is truly over (only one player remains)
   });
   
-  // Function to show game result (win/lose) with appropriate UI
+  // Function to show game result (win/lose) with appropriate UI using Egyptian theme consistently
   function showGameResult(winnerNickname: string | null, isLocalPlayerWinner: boolean, lastPlayerStanding: boolean): void {
-    // Create overlay for game result
+    // Create overlay for game result with Egyptian styling
     const overlay = document.createElement('div');
     overlay.className = 'game-result-overlay';
     overlay.style.cssText = `
@@ -406,9 +407,55 @@ function setupEventListeners(): void {
       align-items: center;
       z-index: 2000;
       animation: fade-in 0.5s ease;
+      background-image: url('/img/egypt-background.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
     `;
     
-    // Create message
+    // Create message box with Egyptian styling
+    const messageBox = document.createElement('div');
+    messageBox.className = 'game-over';
+    messageBox.style.cssText = `
+      background-color: rgba(74, 66, 51, 0.9);
+      border: 5px solid #d4af37;
+      border-radius: 5px;
+      padding: 40px 60px;
+      text-align: center;
+      max-width: 80%;
+      box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+      position: relative;
+    `;
+    
+    // Add top decoration (Egyptian style)
+    const topDecoration = document.createElement('div');
+    topDecoration.style.cssText = `
+      position: absolute;
+      top: 10px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      color: #d4af37;
+    `;
+    topDecoration.innerHTML = '&#9778; &#9779; &#9780; &#9781;';
+    messageBox.appendChild(topDecoration);
+    
+    // Add bottom decoration (Egyptian style)
+    const bottomDecoration = document.createElement('div');
+    bottomDecoration.style.cssText = `
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      color: #d4af37;
+    `;
+    bottomDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
+    messageBox.appendChild(bottomDecoration);
+    
+    // Create message with Egyptian styling
     const message = document.createElement('h1');
     
     if (isLocalPlayerWinner) {
@@ -416,64 +463,105 @@ function setupEventListeners(): void {
       message.textContent = lastPlayerStanding ? 
         'YOU WON! LAST PLAYER STANDING!' : 
         'YOU WON THE GAME!';
-      message.style.color = '#4CAF50'; // Green for winner
+      message.style.color = '#d4af37'; // Egyptian gold for winner
     } else if (winnerNickname) {
       // Someone else won
       message.textContent = `GAME OVER! ${winnerNickname} WINS!`;
-      message.style.color = '#FF5252'; // Red for loser
+      message.style.color = '#d4af37'; // Egyptian gold for consistency
     } else {
       // No winner (draw)
       message.textContent = 'GAME OVER! NO WINNER!';
-      message.style.color = '#FF9800'; // Orange for draw
+      message.style.color = '#d4af37'; // Egyptian gold for consistency
     }
     
-    message.style.cssText += `
-      font-size: 48px;
-      margin-bottom: 30px;
-      text-shadow: 0 0 15px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.7)' : 'rgba(255, 82, 82, 0.7)'};
-      font-family: 'Arial', sans-serif;
+    message.style.cssText = `
+      font-size: 42px;
+      margin: 0 0 20px 0;
+      text-shadow: 0 0 10px rgba(245, 231, 193, 0.5);
+      font-family: 'Papyrus', 'Copperplate', fantasy;
       text-transform: uppercase;
       letter-spacing: 2px;
       animation: pulse 1.5s infinite alternate;
+      color: #d4af37;
     `;
+    messageBox.appendChild(message);
     
-    // Create play again button
-    const playAgainButton = document.createElement('button');
-    playAgainButton.textContent = 'Play Again';
-    playAgainButton.style.cssText = `
+    // Create hieroglyphic decoration
+    const hieroglyphics = document.createElement('div');
+    hieroglyphics.style.cssText = `
+      font-size: 24px;
+      color: #d4af37;
+      margin: 15px 0;
+    `;
+    hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
+    messageBox.appendChild(hieroglyphics);
+    
+    // Create back to menu button with Egyptian styling
+    const backToMenuButton = document.createElement('button');
+    backToMenuButton.textContent = 'Back to Menu';
+    backToMenuButton.style.cssText = `
+      background-color: #d4af37;
+      color: #4a4233;
+      border: 2px solid #e4c49b;
       padding: 15px 30px;
-      font-size: 20px;
-      background-color: ${isLocalPlayerWinner ? '#4CAF50' : '#FF5252'};
-      color: white;
-      border: none;
+      font-size: 18px;
       border-radius: 5px;
       cursor: pointer;
-      font-family: 'Arial', sans-serif;
+      transition: all 0.3s ease;
+      margin-top: 20px;
       font-weight: bold;
-      transition: all 0.2s ease;
-      box-shadow: 0 0 10px ${isLocalPlayerWinner ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 82, 82, 0.5)'};
-      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      font-family: 'Papyrus', 'Copperplate', fantasy;
     `;
     
-    // Button hover effect
-    playAgainButton.onmouseover = () => {
-      playAgainButton.style.transform = 'scale(1.1)';
-    };
+    backToMenuButton.addEventListener('mouseover', () => {
+      backToMenuButton.style.transform = 'scale(1.05)';
+      backToMenuButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.3)';
+    });
     
-    playAgainButton.onmouseout = () => {
-      playAgainButton.style.transform = 'scale(1)';
-    };
+    backToMenuButton.addEventListener('mouseout', () => {
+      backToMenuButton.style.transform = 'scale(1)';
+      backToMenuButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    });
     
-    // Add click event to play again button
-    playAgainButton.addEventListener('click', () => {
+    backToMenuButton.addEventListener('click', () => {
       // Remove overlay
-      if (overlay.parentNode) {
-        overlay.parentNode.removeChild(overlay);
+      document.body.removeChild(overlay);
+      
+      // Don't send end_game event to server as the game is already over
+      // This prevents changing the winner message for other players
+      
+      // Just clean up local state
+      eventBus.emit('game:cleanup', {});
+      
+      // Clear any stored player ID to ensure a fresh start
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('playerNickname');
+      
+      // Disconnect from the server but don't send end_game event
+      // Just close the connection locally
+      if (isConnectedToServer()) {
+        const socket = getSocket();
+        if (socket) {
+          socket.disconnect();
+        }
       }
       
-      // Reset game
-      eventBus.emit('game:reset', {});
+      // Set connected state to false
+      isConnected = false;
+      playerId = null;
+      
+      // Redirect to the start page (nickname entry)
+      window.location.href = '/';
+      window.location.reload(); // Force a full page reload to clear any lingering state
     });
+    
+    messageBox.appendChild(backToMenuButton);
+    
+    // Add message box to overlay
+    overlay.appendChild(messageBox);
     
     // Add animations if not already added
     if (!document.getElementById('game-result-animations')) {
@@ -492,10 +580,6 @@ function setupEventListeners(): void {
       `;
       document.head.appendChild(styleEl);
     }
-    
-    // Add elements to overlay
-    overlay.appendChild(message);
-    overlay.appendChild(playAgainButton);
     
     // Add overlay to body
     document.body.appendChild(overlay);
