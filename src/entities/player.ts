@@ -7,6 +7,7 @@ import { maybeSpawnPowerup, PowerUpType, checkAndCollectPowerUp } from '../game/
 
 // Game state tracking
 let isGamePaused = false;
+let isGameOver = false;
 
 export enum Direction {
   UP,
@@ -106,6 +107,19 @@ export class Player {
     
     eventBus.on('game:resume', () => {
       isGamePaused = false;
+    });
+    
+    // Listen for game over events
+    eventBus.on('game:end', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:over', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:reset', () => {
+      isGameOver = false;
     });
     
     // Set up keyboard controls if this is the local player
@@ -315,9 +329,9 @@ export class Player {
         return;
       }
       
-      // Skip if game is paused
-      if (isGamePaused) {
-        console.log('Game is paused, ignoring keyboard input');
+      // Skip if game is paused or game is over
+      if (isGamePaused || isGameOver) {
+        console.log('Game is paused or over, ignoring keyboard input');
         return;
       }
       
