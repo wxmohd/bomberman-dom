@@ -7,6 +7,7 @@ import { maybeSpawnPowerup, PowerUpType, checkAndCollectPowerUp } from '../game/
 
 // Game state tracking
 let isGamePaused = false;
+let isGameOver = false;
 
 export enum Direction {
   UP,
@@ -108,6 +109,19 @@ export class Player {
       isGamePaused = false;
     });
     
+    // Listen for game over events
+    eventBus.on('game:end', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:over', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:reset', () => {
+      isGameOver = false;
+    });
+    
     // Set up keyboard controls if this is the local player
     if (this.isLocalPlayer()) {
       this.setupKeyboardControls();
@@ -129,6 +143,25 @@ export class Player {
     
     // Emit position update event
     this.emitPositionUpdate();
+  }
+  
+  // Remove the player's visual element from the DOM
+  public removePlayerElement(): void {
+    // Remove player element from DOM if it exists
+    if (this.playerElement && this.playerElement.parentNode) {
+      // Add a fade-out animation
+      this.playerElement.style.transition = 'opacity 0.5s';
+      this.playerElement.style.opacity = '0';
+      
+      // Remove the element after animation completes
+      setTimeout(() => {
+        if (this.playerElement && this.playerElement.parentNode) {
+          this.playerElement.parentNode.removeChild(this.playerElement);
+          this.playerElement = null;
+          this.nameTagElement = null;
+        }
+      }, 500);
+    }
   }
   
   // Create the player's visual element
@@ -315,9 +348,9 @@ export class Player {
         return;
       }
       
-      // Skip if game is paused
-      if (isGamePaused) {
-        console.log('Game is paused, ignoring keyboard input');
+      // Skip if game is paused or game is over
+      if (isGamePaused || isGameOver) {
+        console.log('Game is paused or over, ignoring keyboard input');
         return;
       }
       
@@ -714,15 +747,13 @@ export class Player {
       livesRemaining: this.lives
     });
     
-    // Send hit event to server for websocket synchronization
-    // Only send if this is a remote hit (from another player's bomb)
-    if (data.attackerId && data.attackerId !== this.id) {
-      console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId}`);
-      sendToServer(EVENTS.PLAYER_HIT, {
-        playerId: this.id,
-        attackerId: data.attackerId
-      });
-    }
+    // Always send hit event to server for websocket synchronization
+    // This is critical for self-elimination cases too
+    console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId || this.id}`);
+    sendToServer(EVENTS.PLAYER_HIT, {
+      playerId: this.id,
+      attackerId: data.attackerId || this.id
+    });
     
     // Make player invulnerable temporarily
     this.setInvulnerable();
@@ -731,17 +762,31 @@ export class Player {
     if (this.lives <= 0) {
       console.log(`Player ${this.id} (${this.nickname}) has been eliminated!`);
       
+      // Remove player's visual element immediately
+      this.removePlayerElement();
+      
       // Emit local event for player elimination
       eventBus.emit('player:eliminated', {
         id: this.id,
-        eliminatedBy: data.attackerId
+        eliminatedBy: data.attackerId || this.id
       });
       
       // Send player elimination to server for websocket synchronization
+      // Always send elimination event with explicit attackerId
       sendToServer('player_eliminated', {
         playerId: this.id,
-        attackerId: data.attackerId
+        attackerId: data.attackerId || this.id // Ensure there's always an attackerId, use self-id if none provided
       });
+      
+      // Force a direct server-side player elimination notification for self-elimination
+      if (data.attackerId === this.id) {
+        console.log('Self-elimination detected, sending direct elimination notification');
+        sendToServer(EVENTS.PLAYER_ELIMINATED, {
+          playerId: this.id,
+          attackerId: this.id,
+          forceBroadcast: true // Special flag to ensure server broadcasts this
+        });
+      }
     }
   }
   
@@ -1016,7 +1061,16 @@ export class Player {
           
           if (playerX === Math.floor(explosionX) && playerY === Math.floor(explosionY)) {
             console.log(`Local player hit by own bomb explosion at (${explosionX}, ${explosionY})`);
+            
+            // Emit local hit event
             eventBus.emit('player:hit', {
+              playerId: this.id,
+              attackerId: this.id
+            });
+            
+            // Also send hit event to server for self-damage
+            // This ensures other clients know about self-elimination
+            sendToServer(EVENTS.PLAYER_HIT, {
               playerId: this.id,
               attackerId: this.id
             });
