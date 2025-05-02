@@ -1,6 +1,7 @@
 // Game HUD UI (lives, timer, power-ups)
 import { PowerUpType } from '../game/powerups';
 import { eventBus } from '../../framework/events';
+import { isConnectedToServer, getSocket } from '../multiplayer/socket';
 
 // Store player power-ups and lives
 interface PlayerPowerUps {
@@ -645,40 +646,53 @@ function showGameOverMessage(playerId: string): void {
   hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
   messageBox.appendChild(hieroglyphics);
   
-  // Create play again button with Egyptian theme
-  const playAgainButton = document.createElement('button');
-  playAgainButton.textContent = 'Play Again';
-  playAgainButton.style.backgroundColor = '#d4af37';
-  playAgainButton.style.color = '#000';
-  playAgainButton.style.border = 'none';
-  playAgainButton.style.padding = '12px 30px';
-  playAgainButton.style.fontSize = '18px';
-  playAgainButton.style.cursor = 'pointer';
-  playAgainButton.style.borderRadius = '5px';
-  playAgainButton.style.margin = '10px 0';
-  playAgainButton.style.transition = 'all 0.3s';
-  playAgainButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
-  playAgainButton.style.fontWeight = 'bold';
-  playAgainButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-  messageBox.appendChild(playAgainButton);
+  // Create back to menu button with Egyptian theme
+  const backToMenuButton = document.createElement('button');
+  backToMenuButton.textContent = 'Back to Menu';
+  backToMenuButton.style.backgroundColor = '#d4af37';
+  backToMenuButton.style.color = '#000';
+  backToMenuButton.style.border = 'none';
+  backToMenuButton.style.padding = '12px 30px';
+  backToMenuButton.style.fontSize = '18px';
+  backToMenuButton.style.cursor = 'pointer';
+  backToMenuButton.style.borderRadius = '5px';
+  backToMenuButton.style.margin = '10px 0';
+  backToMenuButton.style.transition = 'all 0.3s';
+  backToMenuButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  backToMenuButton.style.fontWeight = 'bold';
+  backToMenuButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+  messageBox.appendChild(backToMenuButton);
   
   // Button hover effects with Egyptian theme
-  playAgainButton.onmouseover = () => {
-    playAgainButton.style.backgroundColor = '#f5e7c1';
-    playAgainButton.style.transform = 'scale(1.05)';
+  backToMenuButton.onmouseover = () => {
+    backToMenuButton.style.backgroundColor = '#f5e7c1';
+    backToMenuButton.style.transform = 'scale(1.05)';
   };
-  playAgainButton.onmouseout = () => {
-    playAgainButton.style.backgroundColor = '#d4af37';
-    playAgainButton.style.transform = 'scale(1)';
+  backToMenuButton.onmouseout = () => {
+    backToMenuButton.style.backgroundColor = '#d4af37';
+    backToMenuButton.style.transform = 'scale(1)';
   };
   
-  // Add click event to restart button
-  playAgainButton.addEventListener('click', () => {
+  // Add click event to back to menu button
+  backToMenuButton.addEventListener('click', () => {
     // Remove overlay
     document.body.removeChild(overlay);
     
-    // Emit game reset event
-    eventBus.emit('game:reset', {});
+    // Clear any stored player ID to ensure a fresh start
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('playerNickname');
+    
+    // Disconnect from the server if connected
+    if (typeof isConnectedToServer === 'function' && isConnectedToServer()) {
+      const socket = typeof getSocket === 'function' ? getSocket() : null;
+      if (socket) {
+        socket.disconnect();
+      }
+    }
+    
+    // Redirect to the start page (nickname entry)
+    window.location.href = '/';
+    window.location.reload(); // Force a full page reload to clear any lingering state
   });
   
   // Add animations if not already added
