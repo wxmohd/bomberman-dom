@@ -234,8 +234,8 @@ export function clearPowerUps(): void {
 
 // Spawn a power-up with a chance
 export function maybeSpawnPowerup(x: number, y: number): PowerUp | null {
-  // 2% chance to spawn a power-up (significantly reduced to make them very rare)
-  const POWERUP_CHANCE = 0.02;
+  // 3% chance to spawn a power-up (making powerups very rare and special)
+  const POWERUP_CHANCE = 0.05;
   
   // Check if there's already a power-up at this position
   const existingPowerup = activePowerUps.find(p => p.isAt(x, y));

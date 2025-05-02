@@ -384,8 +384,16 @@ function setupEventListeners(): void {
   
   // Handle remote player elimination (from server)
   eventBus.on('remote:player:eliminated', (data) => {
-    console.log('Remote player eliminated event received:', data);
-    // We don't need to show any UI here, as the server will send game:ended
+    console.log('Remote player elimination event received from server:', data);
+    
+    // Forward to player:eliminated to ensure the player is removed from all clients
+    // This is especially important for self-elimination cases
+    eventBus.emit('player:eliminated', {
+      id: data.playerId,
+      eliminatedBy: data.attackerId
+    });
+    
+    // No need to show UI here as the server will send game:ended
     // when the game is truly over (only one player remains)
   });
   

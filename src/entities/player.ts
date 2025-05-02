@@ -747,15 +747,13 @@ export class Player {
       livesRemaining: this.lives
     });
     
-    // Send hit event to server for websocket synchronization
-    // Only send if this is a remote hit (from another player's bomb)
-    if (data.attackerId && data.attackerId !== this.id) {
-      console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId}`);
-      sendToServer(EVENTS.PLAYER_HIT, {
-        playerId: this.id,
-        attackerId: data.attackerId
-      });
-    }
+    // Always send hit event to server for websocket synchronization
+    // This is critical for self-elimination cases too
+    console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId || this.id}`);
+    sendToServer(EVENTS.PLAYER_HIT, {
+      playerId: this.id,
+      attackerId: data.attackerId || this.id
+    });
     
     // Make player invulnerable temporarily
     this.setInvulnerable();
@@ -770,14 +768,25 @@ export class Player {
       // Emit local event for player elimination
       eventBus.emit('player:eliminated', {
         id: this.id,
-        eliminatedBy: data.attackerId
+        eliminatedBy: data.attackerId || this.id
       });
       
       // Send player elimination to server for websocket synchronization
+      // Always send elimination event with explicit attackerId
       sendToServer('player_eliminated', {
         playerId: this.id,
-        attackerId: data.attackerId
+        attackerId: data.attackerId || this.id // Ensure there's always an attackerId, use self-id if none provided
       });
+      
+      // Force a direct server-side player elimination notification for self-elimination
+      if (data.attackerId === this.id) {
+        console.log('Self-elimination detected, sending direct elimination notification');
+        sendToServer(EVENTS.PLAYER_ELIMINATED, {
+          playerId: this.id,
+          attackerId: this.id,
+          forceBroadcast: true // Special flag to ensure server broadcasts this
+        });
+      }
     }
   }
   
@@ -1052,7 +1061,16 @@ export class Player {
           
           if (playerX === Math.floor(explosionX) && playerY === Math.floor(explosionY)) {
             console.log(`Local player hit by own bomb explosion at (${explosionX}, ${explosionY})`);
+            
+            // Emit local hit event
             eventBus.emit('player:hit', {
+              playerId: this.id,
+              attackerId: this.id
+            });
+            
+            // Also send hit event to server for self-damage
+            // This ensures other clients know about self-elimination
+            sendToServer(EVENTS.PLAYER_HIT, {
               playerId: this.id,
               attackerId: this.id
             });
