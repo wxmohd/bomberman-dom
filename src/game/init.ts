@@ -774,10 +774,10 @@ function startGame(container: HTMLElement, gameData?: any) {
         greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
         greenSpace.style.zIndex = '5'; // Below player but above background
         
-        // Add green space to the game container
-        if (mapContainer) {
-          mapContainer.appendChild(greenSpace);
-        }
+        // // Add green space to the game container
+        // if (mapContainer) {
+        //   mapContainer.appendChild(greenSpace);
+        // }
         
         // Remove block after animation
         setTimeout(() => {
@@ -807,18 +807,13 @@ function startGame(container: HTMLElement, gameData?: any) {
           100% { transform: scale(0); opacity: 0; }
         }
         
-        @keyframes green-space-appear {
-          0% { transform: scale(0); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        
         
         .explosion {
           pointer-events: none;
         }
         
-        .green-space {
-          animation: green-space-appear 0.3s forwards;
-        }
+        
       `;
       document.head.appendChild(style);
     }
