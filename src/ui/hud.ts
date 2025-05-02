@@ -367,20 +367,24 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
   playerDiv.className = 'player-powerups';
   playerDiv.id = `player-powerups-${playerId}`;
   
-  // Apply Egyptian theme styling
-  playerDiv.style.backgroundColor = 'rgba(126, 112, 83, 0.85)';
-  playerDiv.style.border = '2px solid #d4af37';
-  playerDiv.style.borderRadius = '5px';
-  playerDiv.style.padding = '12px';
-  playerDiv.style.color = '#f5e7c1';
-  playerDiv.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
-  playerDiv.style.minWidth = '160px';
-  playerDiv.style.marginBottom = '10px';
-  playerDiv.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+  // Apply enhanced Egyptian theme styling
+  playerDiv.style.cssText = `
+    background-color: rgba(210, 180, 140, 0.9);
+    border: 3px solid #d4af37;
+    border-radius: 10px;
+    padding: 15px;
+    color: #5D4037;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
+    min-width: 180px;
+    margin-bottom: 15px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+    background-image: linear-gradient(rgba(210, 180, 140, 0.9), rgba(245, 222, 179, 0.9));
+  `;
   
   // Get player nickname from localStorage or use default
   let playerNickname = 'Player';
-  let characterColor = '#ff9ec4'; // Default Blossom color
+  let characterTitle = 'Mummy';
+  let characterColor = '#d4af37';
   
   if (playerId === localStorage.getItem('playerId')) {
     playerNickname = localStorage.getItem('playerNickname') || 'You';
@@ -388,151 +392,112 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
     const playerIdNum = parseInt(playerId.replace(/\D/g, '')) || 0;
     const characters = [
       { name: 'Pharaoh', color: '#d4af37' },
-      { name: 'Mummy', color: '#e4c49b' },
-      { name: 'Anubis', color: '#7e7053' }
+      { name: 'Mummy', color: '#d4af37' },
+      { name: 'Anubis', color: '#d4af37' },
+      { name: 'Sphinx', color: '#d4af37' }
     ];
-    const character = characters[playerIdNum % 3];
+    const character = characters[playerIdNum % 4];
+    characterTitle = character.name;
     characterColor = character.color;
-    playerNickname = `${playerNickname} (${character.name})`;
+    playerNickname = `${playerNickname} (${characterTitle})`;
   }
   
-  // Character color is used for accents in the Egyptian theme
-  // We're using gold borders consistently instead of character colors
-  
-  // Create player header with Egyptian styling
+  // Create player header with enhanced Egyptian styling
   const header = document.createElement('h3');
   header.textContent = playerNickname;
-  header.style.margin = '0 0 10px 0';
-  header.style.fontSize = '16px';
-  header.style.fontWeight = 'bold';
-  header.style.color = '#f5e7c1';
-  header.style.borderBottom = '2px dotted #d4af37';
-  header.style.paddingBottom = '6px';
-  header.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.5)';
+  header.style.cssText = `
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    font-weight: bold;
+    color: #5D4037;
+    border-bottom: 2px solid #d4af37;
+    padding-bottom: 8px;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  `;
   playerDiv.appendChild(header);
   
-  // Create power-up stats with Powerpuff Girls styling
+  // Create stat container with Egyptian styling
+  const statsContainer = document.createElement('div');
+  statsContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  `;
+  
+  // Create power-up stats with Egyptian styling
   // Bombs
-  const bombStat = document.createElement('div');
-  bombStat.className = 'powerup-stat';
-  
-  const bombIcon = document.createElement('span');
-  bombIcon.className = 'powerup-icon icon-bomb';
-  bombStat.appendChild(bombIcon);
-  
-  const bombLabel = document.createElement('span');
-  bombLabel.textContent = 'Bombs';
-  bombLabel.style.color = '#f5e7c1';
-  bombStat.appendChild(bombLabel);
-  
-  const bombValue = document.createElement('span');
-  bombValue.className = 'powerup-value';
-  bombValue.textContent = powerups.bombs.toString();
-  bombValue.id = `${playerId}-bombs`;
-  bombValue.style.fontWeight = 'bold';
-  bombValue.style.marginLeft = 'auto';
-  bombValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
-  bombValue.style.border = '1px solid #d4af37';
-  bombValue.style.borderRadius = '50%';
-  bombValue.style.padding = '2px 8px';
-  bombValue.style.minWidth = '20px';
-  bombValue.style.textAlign = 'center';
-  bombValue.style.color = '#ffffff';
-  bombStat.appendChild(bombValue);
-  
-  playerDiv.appendChild(bombStat);
+  const bombStat = createStatRow('Bombs', powerups.bombs, `${playerId}-bombs`);
+  statsContainer.appendChild(bombStat);
   
   // Flames
-  const flameStat = document.createElement('div');
-  flameStat.className = 'powerup-stat';
-  
-  const flameIcon = document.createElement('span');
-  flameIcon.className = 'powerup-icon icon-flame';
-  flameStat.appendChild(flameIcon);
-  
-  const flameLabel = document.createElement('span');
-  flameLabel.textContent = 'Flames';
-  flameLabel.style.color = '#f5e7c1';
-  flameStat.appendChild(flameLabel);
-  
-  const flameValue = document.createElement('span');
-  flameValue.className = 'powerup-value';
-  flameValue.textContent = powerups.flames.toString();
-  flameValue.id = `${playerId}-flames`;
-  flameValue.style.fontWeight = 'bold';
-  flameValue.style.marginLeft = 'auto';
-  flameValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
-  flameValue.style.border = '1px solid #d4af37';
-  flameValue.style.borderRadius = '50%';
-  flameValue.style.padding = '2px 8px';
-  flameValue.style.minWidth = '20px';
-  flameValue.style.textAlign = 'center';
-  flameValue.style.color = '#ffffff';
-  flameStat.appendChild(flameValue);
-  
-  playerDiv.appendChild(flameStat);
+  const flameStat = createStatRow('Flames', powerups.flames, `${playerId}-flames`);
+  // Add heart icon for flames
+  const heartIcon = document.createElement('span');
+  heartIcon.innerHTML = '❤️';
+  heartIcon.style.marginLeft = '5px';
+  heartIcon.style.fontSize = '14px';
+  flameStat.querySelector('.stat-label')?.appendChild(heartIcon);
+  statsContainer.appendChild(flameStat);
   
   // Speed
-  const speedStat = document.createElement('div');
-  speedStat.className = 'powerup-stat';
-  
-  const speedIcon = document.createElement('span');
-  speedIcon.className = 'powerup-icon icon-speed';
-  speedStat.appendChild(speedIcon);
-  
-  const speedLabel = document.createElement('span');
-  speedLabel.textContent = 'Speed';
-  speedLabel.style.color = '#f5e7c1';
-  speedStat.appendChild(speedLabel);
-  
-  const speedValue = document.createElement('span');
-  speedValue.className = 'powerup-value';
-  speedValue.textContent = powerups.speed.toString();
-  speedValue.id = `${playerId}-speed`;
-  speedValue.style.fontWeight = 'bold';
-  speedValue.style.marginLeft = 'auto';
-  speedValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
-  speedValue.style.border = '1px solid #d4af37';
-  speedValue.style.borderRadius = '50%';
-  speedValue.style.padding = '2px 8px';
-  speedValue.style.minWidth = '20px';
-  speedValue.style.textAlign = 'center';
-  speedValue.style.color = '#ffffff';
-  speedStat.appendChild(speedValue);
-  
-  playerDiv.appendChild(speedStat);
+  const speedStat = createStatRow('Speed', powerups.speed, `${playerId}-speed`);
+  statsContainer.appendChild(speedStat);
   
   // Lives
-  const livesStat = document.createElement('div');
-  livesStat.className = 'powerup-stat';
+  const livesStat = createStatRow('Lives', powerups.lives, `${playerId}-lives`);
+  statsContainer.appendChild(livesStat);
   
-  const livesIcon = document.createElement('span');
-  livesIcon.className = 'powerup-icon icon-heart';
-  livesStat.appendChild(livesIcon);
-  
-  const livesLabel = document.createElement('span');
-  livesLabel.textContent = 'Lives';
-  livesLabel.style.color = '#f5e7c1';
-  livesStat.appendChild(livesLabel);
-  
-  const livesValue = document.createElement('span');
-  livesValue.className = 'powerup-value';
-  livesValue.textContent = powerups.lives.toString();
-  livesValue.id = `${playerId}-lives`;
-  livesValue.style.fontWeight = 'bold';
-  livesValue.style.marginLeft = 'auto';
-  livesValue.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
-  livesValue.style.border = '1px solid #d4af37';
-  livesValue.style.borderRadius = '50%';
-  livesValue.style.padding = '2px 8px';
-  livesValue.style.minWidth = '20px';
-  livesValue.style.textAlign = 'center';
-  livesValue.style.color = '#ffffff';
-  livesStat.appendChild(livesValue);
-  
-  playerDiv.appendChild(livesStat);
+  playerDiv.appendChild(statsContainer);
   
   return playerDiv;
+}
+
+// Helper function to create stat rows with Egyptian styling
+function createStatRow(label: string, value: number, id: string): HTMLElement {
+  const statRow = document.createElement('div');
+  statRow.className = 'powerup-stat';
+  statRow.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background-color: rgba(245, 222, 179, 0.5);
+    border-radius: 6px;
+    border-left: 4px solid #d4af37;
+  `;
+  
+  const statLabel = document.createElement('span');
+  statLabel.className = 'stat-label';
+  statLabel.textContent = label;
+  statLabel.style.cssText = `
+    color: #5D4037;
+    font-weight: bold;
+    font-size: 16px;
+    text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.2);
+  `;
+  statRow.appendChild(statLabel);
+  
+  const statValue = document.createElement('span');
+  statValue.className = 'powerup-value';
+  statValue.textContent = value.toString();
+  statValue.id = id;
+  statValue.style.cssText = `
+    font-weight: bold;
+    background-color: #d4af37;
+    color: #5D4037;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    font-size: 16px;
+  `;
+  statRow.appendChild(statValue);
+  
+  return statRow;
 }
 
 // Reset all power-ups

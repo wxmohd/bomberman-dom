@@ -213,6 +213,57 @@ export function initGame() {
       createPlayerDirectly(mapContainerElement, data.id, data.nickname, data.x, data.y);
     }
   });
+  
+  // Listen for player disconnection/removal
+  eventBus.on('player:remove', (data) => {
+    console.log(`Removing player from game: ${data.id}`);
+    
+    // Find all player elements with this ID and remove them
+    const playerElements = document.querySelectorAll(`.player-container[data-player-id="${data.id}"]`);
+    playerElements.forEach(element => {
+      // Add a fade-out effect before removing
+      element.classList.add('player-disconnected');
+      
+      // Remove after animation completes
+      setTimeout(() => {
+        element.remove();
+      }, 800);
+    });
+    
+    // Also try direct ID-based removal as fallback
+    const directPlayerElement = document.getElementById(`player-${data.id}`);
+    if (directPlayerElement) {
+      directPlayerElement.classList.add('player-disconnected');
+      setTimeout(() => {
+        directPlayerElement.remove();
+      }, 800);
+    }
+  });
+  
+  // Create a style element for game-specific styles
+  const styleElement = document.createElement('style');
+  styleElement.textContent = `
+    /* Player disconnection animation */
+    .player-disconnected {
+      animation: player-disconnect 0.8s forwards;
+    }
+    
+    @keyframes player-disconnect {
+      0% {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+      }
+      50% {
+        transform: translate(-50%, -100%);
+        opacity: 0.5;
+      }
+      100% {
+        transform: translate(-50%, -150%);
+        opacity: 0;
+      }
+    }
+  `;
+  document.head.appendChild(styleElement);
 }
 
 // Start a new game
@@ -335,19 +386,29 @@ function startGame(container: HTMLElement, gameData?: any) {
     position: fixed;
     top: 10px;
     left: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 10px;
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
+    background-color: rgba(126, 112, 83, 0.9);
+    color: #f5e7c1;
+    padding: 12px 15px;
+    border-radius: 8px;
+    font-family: 'Papyrus', 'Copperplate', fantasy;
     z-index: 100;
+    border: 2px solid #d4af37;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    min-width: 180px;
+    text-align: center;
   `;
   
   if (currentPlayer) {
     const playerNumber = currentPlayer.playerNumber || 1;
+    const playerTitle = playerNumber === 1 ? 'Pharaoh' : 
+                        playerNumber === 2 ? 'Mummy' : 
+                        playerNumber === 3 ? 'Anubis' : 'Sphinx';
+    
     playerInfo.innerHTML = `
-      <div style="margin-bottom: 5px; font-weight: bold;">You: ${currentPlayer.nickname} (P${playerNumber})</div>
-      <div style="width: 20px; height: 20px; background-color: ${currentPlayer.color}; border-radius: 50%; display: inline-block; margin-right: 5px;"></div>
+      <div style="margin-bottom: 8px; font-weight: bold; font-size: 16px; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);">
+        You: ${currentPlayer.nickname} (${playerTitle})
+      </div>
+      <div style="width: 24px; height: 24px; background-color: ${currentPlayer.color}; border-radius: 50%; display: inline-block; border: 2px solid #d4af37;"></div>
     `;
   }
   

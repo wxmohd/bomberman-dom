@@ -471,6 +471,13 @@ io.on('connection', (socket) => {
     if (playerIndex !== -1) {
       lobbyState.players.splice(playerIndex, 1);
       
+      // If no players left in the lobby, reset the game state
+      if (lobbyState.players.length === 0) {
+        console.log('No players left in the lobby, resetting game state');
+        lobbyState.gameInProgress = false;
+        gameState.gameInProgress = false;
+      }
+      
       // Send updated lobby state to all clients
       io.emit('lobby_update', { lobby: lobbyState });
     }
