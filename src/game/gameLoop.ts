@@ -1,5 +1,6 @@
 // Main game loop using requestAnimationFrame
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 import { isMultiplayerConnected } from '../main';
 
 // Last timestamp for calculating delta time
@@ -157,54 +158,56 @@ function showPauseOverlay(): void {
   // Remove existing overlay if it exists
   hidePauseOverlay();
   
-  // Create pause overlay
-  pauseOverlay = document.createElement('div');
-  pauseOverlay.className = 'pause-overlay';
-  pauseOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    animation: fade-in 0.3s ease;
-  `;
+  // Create pause message using the framework's h function
+  const pauseMessageVNode = h('h1', {
+    style: `
+      color: white;
+      font-size: 48px;
+      margin-bottom: 30px;
+      font-family: 'Arial', sans-serif;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    `
+  }, ['GAME PAUSED']);
   
-  // Create pause message
-  const pauseMessage = document.createElement('h1');
-  pauseMessage.textContent = 'GAME PAUSED';
-  pauseMessage.style.cssText = `
-    color: white;
-    font-size: 48px;
-    margin-bottom: 30px;
-    font-family: 'Arial', sans-serif;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-  `;
+  // Create instructions using the framework's h function
+  const instructionsVNode = h('div', {
+    style: `
+      color: white;
+      font-size: 24px;
+      margin-bottom: 20px;
+      font-family: 'Arial', sans-serif;
+    `
+  }, ['Press R to resume']);
   
-  // Create instructions
-  const instructions = document.createElement('div');
-  instructions.textContent = 'Press R to resume';
-  instructions.style.cssText = `
-    color: white;
-    font-size: 24px;
-    margin-bottom: 20px;
-    font-family: 'Arial', sans-serif;
-  `;
+  // Create pause overlay using the framework's h function
+  const pauseOverlayVNode = h('div', {
+    class: 'pause-overlay',
+    style: `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      animation: fade-in 0.3s ease;
+    `
+  }, [pauseMessageVNode, instructionsVNode]);
   
-  // Add elements to overlay
-  pauseOverlay.appendChild(pauseMessage);
-  pauseOverlay.appendChild(instructions);
+  // Render the pause overlay
+  pauseOverlay = render(pauseOverlayVNode) as HTMLElement;
   
   // Add animations if not already added
   if (!document.getElementById('pause-animations')) {
-    const styleEl = document.createElement('style');
-    styleEl.id = 'pause-animations';
-    styleEl.textContent = `
+    // Create animations style using the framework's h function
+    const styleVNode = h('style', {
+      id: 'pause-animations'
+    }, [
+      `
       @keyframes fade-in {
         0% { opacity: 0; }
         100% { opacity: 1; }
@@ -214,8 +217,12 @@ function showPauseOverlay(): void {
         0% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 255, 255, 0.5); }
         100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
       }
-    `;
-    document.head.appendChild(styleEl);
+      `
+    ]);
+    
+    // Render and add style to document head
+    const styleElement = render(styleVNode) as HTMLElement;
+    document.head.appendChild(styleElement);
   }
   
   // Add overlay to body

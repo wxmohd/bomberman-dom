@@ -121,56 +121,52 @@ export class PowerUp {
       this.element.parentNode.removeChild(this.element);
     }
     
-    // Create a direct DOM element instead of using h function
-    this.element = document.createElement('div');
-    this.element.className = `powerup powerup-${this.type}`;
-    
-    // Set the data-type attribute directly
-    this.element.setAttribute('data-type', this.type);
-    
     const color = this.getColor();
     const iconPath = this.getIcon();
     
-    // Set styles directly
-    this.element.style.position = 'absolute';
-    this.element.style.left = `${this.x * TILE_SIZE}px`; // Use full tile position
-    this.element.style.top = `${this.y * TILE_SIZE}px`; // Use full tile position
-    this.element.style.width = `${TILE_SIZE}px`; // Use full tile size
-    this.element.style.height = `${TILE_SIZE}px`; // Use full tile size
-    this.element.style.backgroundColor = 'transparent'; // Transparent background to show image
-    this.element.style.zIndex = '50';
-    this.element.style.boxShadow = `0 0 10px ${color}, 0 0 15px ${color}`;
-    this.element.style.display = 'flex';
-    this.element.style.justifyContent = 'center';
-    this.element.style.alignItems = 'center';
-    this.element.style.pointerEvents = 'none';
+    // Create powerup element using the framework's h function
+    // Following the same pattern as in block.ts
+    const powerupElement = h('div', {
+      class: `powerup powerup-${this.type}`,
+      'data-type': this.type,
+      style: `
+        position: absolute;
+        left: ${this.x * TILE_SIZE}px;
+        top: ${this.y * TILE_SIZE}px;
+        width: ${TILE_SIZE}px;
+        height: ${TILE_SIZE}px;
+        background-color: transparent;
+        z-index: 50;
+        box-shadow: 0 0 10px ${color}, 0 0 15px ${color};
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        pointer-events: none;
+        animation: powerup-spawn 0.3s ease-out forwards, powerup-pulse 1s infinite alternate 0.3s;
+      `
+    }, [
+      h('img', {
+        src: iconPath,
+        alt: this.type,
+        style: `
+          width: 80%;
+          height: 80%;
+          object-fit: contain;
+          display: block;
+          margin: auto;
+        `,
+        onerror: `this.outerHTML = '${this.type === PowerUpType.BOMB ? '💣' : 
+                                    this.type === PowerUpType.FLAME ? '🔥' : 
+                                    this.type === PowerUpType.SPEED ? '⚡' : '?'}'`
+      })
+    ]);
     
-    // Create and add image element
-    const imgElement = document.createElement('img');
-    imgElement.src = iconPath;
-    imgElement.alt = this.type;
-    imgElement.style.width = '80%';
-    imgElement.style.height = '80%';
-    imgElement.style.objectFit = 'contain';
-    imgElement.style.display = 'block';
-    imgElement.style.margin = 'auto';
-    imgElement.onerror = () => {
-      console.error(`Failed to load image: ${iconPath}`);
-      // Fallback to emoji if image fails to load
-      this.element!.textContent = this.type === PowerUpType.BOMB ? '💣' : 
-                                 this.type === PowerUpType.FLAME ? '🔥' : 
-                                 this.type === PowerUpType.SPEED ? '⚡' : '?';
-    };
-    this.element.appendChild(imgElement);
+    // Render using the framework's render function
+    this.element = render(powerupElement) as HTMLElement;
+    container.appendChild(this.element);
     
     // Log image path for debugging
     console.log(`Loading powerup image: ${iconPath}`);
-    
-    // Add spawn animation
-    this.element.style.animation = 'powerup-spawn 0.3s ease-out forwards, powerup-pulse 1s infinite alternate 0.3s';
-    
-    // Add to container
-    container.appendChild(this.element);
     
     // Log for debugging
     console.log(`Rendered power-up at (${this.x}, ${this.y}) with type ${this.type}`);
