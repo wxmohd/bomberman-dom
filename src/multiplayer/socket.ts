@@ -328,6 +328,32 @@ function setupGameEventListeners(): void {
     // Forward to event bus
     eventBus.emit('remote:player:eliminated', data);
   });
+
+  // Power-up collected event
+  socket.on(EVENTS.COLLECT_POWERUP, (data) => {
+    console.log('Received power-up collection from server:', data);
+    
+    // Make sure we have all required data
+    if (data.x === undefined || data.y === undefined || !data.playerId || !data.powerupType) {
+      console.error('Missing required data for power-up collection:', data);
+      return;
+    }
+    
+    // Skip if this is the local player (they've already collected it)
+    const localPlayerId = localStorage.getItem('playerId');
+    if (data.playerId === localPlayerId) {
+      console.log('Skipping remote power-up collection for local player');
+      return;
+    }
+    
+    // Emit event to remove the power-up from the game
+    eventBus.emit('remote:powerup:collected', {
+      x: data.x,
+      y: data.y,
+      playerId: data.playerId,
+      type: data.powerupType
+    });
+  });
 }
 
 /**
