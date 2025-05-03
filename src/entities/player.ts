@@ -512,7 +512,24 @@ export class Player {
     
     console.log(`Applying power-up to player ${this.id}:`, data);
     
-    switch (data.type) {
+    // Convert string type to enum if needed
+    let powerupType = data.type;
+    if (typeof data.type === 'string') {
+      switch (data.type.toLowerCase()) {
+        case 'bomb':
+          powerupType = PowerUpType.BOMB;
+          break;
+        case 'flame':
+          powerupType = PowerUpType.FLAME;
+          break;
+        case 'speed':
+          powerupType = PowerUpType.SPEED;
+          break;
+      }
+    }
+    
+    // Apply the specific power-up effect based on type
+    switch (powerupType) {
       case PowerUpType.BOMB:
         this.bombCapacity += 1;
         console.log(`Increased bomb capacity to ${this.bombCapacity}`);
@@ -531,6 +548,7 @@ export class Player {
         break;
       default:
         console.log(`Unknown power-up type: ${data.type}`);
+        return; // Exit early if unknown type
     }
     
     // Emit stats update event
@@ -576,97 +594,104 @@ export class Player {
         const powerUpType = powerUpEl.getAttribute('data-type');
         console.log(`Power-up type: ${powerUpType}`);
         
-        if (powerUpType) {
-          // Create a floating notification
-          const notification = document.createElement('div');
-          notification.className = 'powerup-notification';
-          
-          // Create icon element based on power-up type
-          let iconElement = document.createElement('span');
-          
-          if (powerUpType === 'bomb') {
-            const bombImg = document.createElement('img');
-            bombImg.src = '/img/Bomb.png';
-            bombImg.style.width = '20px';
-            bombImg.style.height = '20px';
-            bombImg.style.verticalAlign = 'middle';
-            iconElement.appendChild(bombImg);
-          } else if (powerUpType === 'flame') {
-            iconElement.textContent = '🔥';
-          } else if (powerUpType === 'speed') {
-            iconElement.textContent = '⚡';
-          } else {
-            iconElement.textContent = '?';
-          }
-          
-          // Add the icon and text
-          notification.appendChild(iconElement);
-          notification.appendChild(document.createTextNode(' +1'));
-          notification.style.cssText = `
-            position: absolute;
-            left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
-            top: ${gridY * TILE_SIZE}px;
-            color: white;
-            font-weight: bold;
-            font-size: 16px;
-            text-shadow: 0 0 3px black;
-            z-index: 1000;
-            pointer-events: none;
-            animation: float-up 1.5s forwards;
-          `;
-          
-          // Add float-up animation if it doesn't exist
-          if (!document.getElementById('float-up-animation')) {
-            const styleEl = document.createElement('style');
-            styleEl.id = 'float-up-animation';
-            styleEl.textContent = `
-              @keyframes float-up {
-                0% { transform: translateY(0); opacity: 1; }
-                100% { transform: translateY(-50px); opacity: 0; }
-              }
-            `;
-            document.head.appendChild(styleEl);
-          }
-          
-          // Add notification to the DOM
-          document.body.appendChild(notification);
-          
-          // Remove notification after animation
-          setTimeout(() => {
-            if (notification.parentNode) {
-              notification.parentNode.removeChild(notification);
-            }
-          }, 1500);
-          
-          // Remove the power-up element from the DOM
-          powerUpEl.remove();
-          
-          // Emit a power-up applied event with visual verification
-          eventBus.emit('powerup:applied', {
-            playerId: this.id,
-            type: powerUpType,
-            source: 'visual_verification'
-          });
-          
-          // Also emit the collected event for the HUD
-          eventBus.emit('powerup:collected', {
-            playerId: this.id,
-            type: powerUpType,
-            position: { x: gridX, y: gridY }
-          });
-          
-          // Send powerup collection to server for websocket synchronization
-          sendToServer(EVENTS.COLLECT_POWERUP, {
-            playerId: this.id,
-            powerupId: `powerup_${Date.now()}`,
-            powerupType: powerUpType,
-            x: gridX,
-            y: gridY
-          });
-          
-          console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
-          foundPowerUp = true;
+        // Skip if we already found a powerup at this position or if the type is missing
+        if (foundPowerUp || !powerUpType) {
+          return;
         }
+        
+        // Create a floating notification
+        const notification = document.createElement('div');
+        notification.className = 'powerup-notification';
+        
+        // Create icon element based on power-up type
+        let iconElement = document.createElement('span');
+        
+        if (powerUpType === 'bomb') {
+          const bombImg = document.createElement('img');
+          bombImg.src = '/img/Bomb.png';
+          bombImg.style.width = '20px';
+          bombImg.style.height = '20px';
+          bombImg.style.verticalAlign = 'middle';
+          iconElement.appendChild(bombImg);
+        } else if (powerUpType === 'flame') {
+          iconElement.textContent = '🔥';
+        } else if (powerUpType === 'speed') {
+          iconElement.textContent = '⚡';
+        } else {
+          iconElement.textContent = '?';
+        }
+        
+        // Add the icon and text
+        notification.appendChild(iconElement);
+        notification.appendChild(document.createTextNode(' +1'));
+        notification.style.cssText = `
+          position: absolute;
+          left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
+          top: ${gridY * TILE_SIZE}px;
+          color: white;
+          font-weight: bold;
+          font-size: 16px;
+          text-shadow: 0 0 3px black;
+          z-index: 1000;
+          pointer-events: none;
+          animation: float-up 1.5s forwards;
+        `;
+        
+        // Add float-up animation if it doesn't exist
+        if (!document.getElementById('float-up-animation')) {
+          const styleEl = document.createElement('style');
+          styleEl.id = 'float-up-animation';
+          styleEl.textContent = `
+            @keyframes float-up {
+              0% { transform: translateY(0); opacity: 1; }
+              100% { transform: translateY(-50px); opacity: 0; }
+            }
+          `;
+          document.head.appendChild(styleEl);
+        }
+        
+        // Add notification to the DOM
+        document.body.appendChild(notification);
+        
+        // Remove notification after animation
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 1500);
+        
+        // Remove the power-up element from the DOM
+        powerUpEl.remove();
+        
+        // Mark that we found a powerup to prevent processing multiple powerups at once
+        foundPowerUp = true;
+        
+        // First send to server for websocket synchronization
+        // This ensures other players see the powerup disappear immediately
+        sendToServer(EVENTS.COLLECT_POWERUP, {
+          playerId: this.id,
+          powerupId: `powerup_${Date.now()}`,
+          powerupType: powerUpType,
+          x: gridX,
+          y: gridY
+        });
+        
+        // Then emit a power-up applied event with visual verification
+        // This is what actually applies the powerup effect to the player
+        eventBus.emit('powerup:applied', {
+          playerId: this.id,
+          type: powerUpType,
+          source: 'visual_verification'
+        });
+        
+        // Also emit the collected event for the HUD
+        eventBus.emit('powerup:collected', {
+          playerId: this.id,
+          type: powerUpType,
+          position: { x: gridX, y: gridY }
+        });
+        
+        console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
       } else {
         console.log(`No match: Player at (${gridX}, ${gridY}), Power-up at (${Math.floor(left)}, ${Math.floor(top)})`);
       }
