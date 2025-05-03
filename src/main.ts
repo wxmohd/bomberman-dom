@@ -4,6 +4,7 @@ import { connectToServer, disconnectFromServer, sendToServer, getSocketId, isCon
 import { initChat, addSystemMessage } from './multiplayer/chat';
 import { initChatUI } from './ui/chatUI';
 import { eventBus } from '../framework/events';
+import { h, render } from '../framework/dom';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
 import { TILE_SIZE } from './game/constants';
@@ -24,22 +25,41 @@ document.addEventListener('DOMContentLoaded', () => {
   if (app) {
     app.innerHTML = '';
     
-    // Apply base styles immediately
-    document.body.style.margin = '0';
-    document.body.style.padding = '0';
-    document.body.style.overflow = 'hidden';
-    document.body.style.width = '100vw';
-    document.body.style.height = '100vh';
-    // Egyptian theme background color
-    document.body.style.backgroundColor = '#f5e7c9';
+    // Apply base styles to body using the framework's approach
+    const bodyStyleVNode = h('style', {}, [
+      `
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        background-color: #f5e7c9; /* Egyptian theme background color */
+      }
+      `
+    ]);
     
-    // Make container full-page
-    app.style.width = '100vw';
-    app.style.height = '100vh';
-    app.style.position = 'relative';
-    app.style.overflow = 'hidden';
-    // Egyptian theme background color
-    app.style.backgroundColor = '#f5e7c9';
+    // Render and append the body styles
+    document.head.appendChild(render(bodyStyleVNode) as HTMLElement);
+    
+    // Create app container with styles using the framework's h function
+    const appContainerVNode = h('div', {
+      id: 'app-container',
+      style: `
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+        overflow: hidden;
+        background-color: #f5e7c9; /* Egyptian theme background color */
+      `
+    }, []);
+    
+    // Render the app container
+    const renderedAppContainer = render(appContainerVNode) as HTMLElement;
+    
+    // Replace the app's content with the rendered container
+    app.innerHTML = '';
+    app.appendChild(renderedAppContainer);
     
     // Initialize the game immediately (skipping the old lobby)
     initGame();

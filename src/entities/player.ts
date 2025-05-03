@@ -1,5 +1,6 @@
 // Player entity logic
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 import { TILE_SIZE } from '../game/constants';
 import { EVENTS } from '../multiplayer/events';
 import { sendToServer } from '../multiplayer/socket';
@@ -149,13 +150,15 @@ export class Player {
   public removePlayerElement(): void {
     // Remove player element from DOM if it exists
     if (this.playerElement && this.playerElement.parentNode) {
-      // Add a fade-out animation
+      // Add a fade-out animation - we'll use direct style updates for the animation
+      // as it's more efficient for transitions
       this.playerElement.style.transition = 'opacity 0.5s';
       this.playerElement.style.opacity = '0';
       
       // Remove the element after animation completes
       setTimeout(() => {
         if (this.playerElement && this.playerElement.parentNode) {
+          // Use the parent node's removeChild method which is framework-agnostic
           this.playerElement.parentNode.removeChild(this.playerElement);
           this.playerElement = null;
           this.nameTagElement = null;
@@ -169,18 +172,6 @@ export class Player {
     console.log(`Creating player element for player ${this.id} (${this.nickname}) at position ${this.x},${this.y}`);
     console.log(`Container:`, container);
     
-    // Create player element
-    const playerEl = document.createElement('div');
-    playerEl.className = 'player';
-    playerEl.id = `player-${this.id}`;
-    
-    // Style the player
-    playerEl.style.position = 'absolute';
-    playerEl.style.left = `${this.x * TILE_SIZE}px`;
-    playerEl.style.top = `${this.y * TILE_SIZE}px`;
-    playerEl.style.width = `${TILE_SIZE}px`;
-    playerEl.style.height = `${TILE_SIZE}px`;
-    
     // Player character images based on player number
     const playerImages = [
       '/img/IK.png',  // Player 1
@@ -191,44 +182,59 @@ export class Player {
     const imageIndex = (this.playerNumber - 1) % playerImages.length;
     const playerImage = playerImages[imageIndex];
     
-    // Set background image instead of color
-    playerEl.style.backgroundImage = `url(${playerImage})`;
-    playerEl.style.backgroundSize = 'contain';
-    playerEl.style.backgroundPosition = 'center';
-    playerEl.style.backgroundRepeat = 'no-repeat';
-    playerEl.style.backgroundColor = 'transparent';
-    playerEl.style.zIndex = '1000';
-    playerEl.style.boxSizing = 'border-box';
-    playerEl.style.transition = 'left 0.1s, top 0.1s';
+    // Create name tag content
+    const nameTagText = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
     
-    console.log(`Player element created:`, playerEl);
+    // Create player element using the framework's h function
+    const nameTagVNode = h('div', {
+      style: `
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+        white-space: nowrap;
+      `
+    }, [nameTagText]);
     
-    // Add name tag
-    const nameTag = document.createElement('div');
-    nameTag.textContent = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
-    nameTag.style.position = 'absolute';
-    nameTag.style.bottom = '100%';
-    nameTag.style.left = '50%';
-    nameTag.style.transform = 'translateX(-50%)';
-    nameTag.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    nameTag.style.color = 'white';
-    nameTag.style.padding = '2px 5px';
-    nameTag.style.borderRadius = '3px';
-    nameTag.style.fontSize = '12px';
-    nameTag.style.whiteSpace = 'nowrap';
+    const playerVNode = h('div', {
+      class: 'player',
+      id: `player-${this.id}`,
+      style: `
+        position: absolute;
+        left: ${this.x * TILE_SIZE}px;
+        top: ${this.y * TILE_SIZE}px;
+        width: ${TILE_SIZE}px;
+        height: ${TILE_SIZE}px;
+        background-image: url(${playerImage});
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-color: transparent;
+        z-index: 1000;
+        box-sizing: border-box;
+        transition: left 0.1s, top 0.1s;
+      `
+    }, [nameTagVNode]);
     
-    playerEl.appendChild(nameTag);
+    // Render the player element using the framework's render function
+    const renderedPlayer = render(playerVNode) as HTMLElement;
+    console.log(`Player element created:`, renderedPlayer);
     
     // Add to container
-    container.appendChild(playerEl);
+    container.appendChild(renderedPlayer);
     console.log(`Player element added to container`);
     
     // Store references
-    this.playerElement = playerEl;
-    this.nameTagElement = nameTag;
+    this.playerElement = renderedPlayer;
+    this.nameTagElement = renderedPlayer.firstChild as HTMLElement;
     
     // Force a reflow to ensure the player is visible
-    void playerEl.offsetWidth;
+    void renderedPlayer.offsetWidth;
     
     // Double-check that the player is in the DOM
     setTimeout(() => {
@@ -239,7 +245,7 @@ export class Player {
         console.error(`Player ${this.id} is NOT in the DOM!`);
         // Try adding it again
         if (this.gameContainer) {
-          this.gameContainer.appendChild(playerEl);
+          this.gameContainer.appendChild(renderedPlayer);
           console.log(`Attempted to add player element again`);
         }
       }
@@ -251,6 +257,8 @@ export class Player {
   // Update the visual position of the player
   private updateVisualPosition(): void {
     if (this.playerElement) {
+      // For player movement, we'll use direct style updates for performance
+      // This is a common optimization even in frameworks
       this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
       this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
     }

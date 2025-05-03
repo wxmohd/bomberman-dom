@@ -1,5 +1,6 @@
 // Egyptian Pyramid theme UI components
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 
 // Character data using the provided player images
 const EGYPTIAN_CHARACTERS = [
@@ -346,74 +347,73 @@ function addCharacterSelection(container: HTMLElement): void {
 
 // Create a character card
 function createCharacterCard(character: any): HTMLElement {
-  const card = document.createElement('div');
-  card.className = 'egypt-character-card';
-  card.dataset.characterId = character.id;
-  
-  // Set card border color to match character
-  card.style.borderColor = character.color;
-  
-  // Add character image
-  const image = document.createElement('img');
-  image.src = character.image;
-  image.alt = character.name;
-  image.className = 'egypt-character-image';
-  card.appendChild(image);
-  
-  // Add character name
-  const name = document.createElement('h3');
-  name.textContent = character.name;
-  name.className = 'egypt-character-name';
-  name.style.color = character.color;
-  card.appendChild(name);
-  
-  // Add character description
-  const description = document.createElement('p');
-  description.textContent = character.description;
-  description.className = 'egypt-character-description';
-  card.appendChild(description);
-  
-  // Add character abilities
-  const abilities = document.createElement('p');
-  abilities.textContent = `Special: ${character.abilities}`;
-  abilities.className = 'egypt-character-abilities';
-  card.appendChild(abilities);
-  
-  // Add select button
-  const selectButton = document.createElement('button');
-  selectButton.textContent = 'Select';
-  selectButton.className = 'egypt-select-button';
-  selectButton.style.backgroundColor = character.color;
-  card.appendChild(selectButton);
-  
-  // Add click event to select character
-  card.addEventListener('click', () => {
-    // Remove selected class from all cards
-    document.querySelectorAll('.egypt-character-card').forEach(el => {
-      el.classList.remove('selected');
-    });
+  // Create character card using the framework's h function
+  const cardVNode = h('div', {
+    class: 'egypt-character-card',
+    'data-character-id': character.id,
+    style: `border-color: ${character.color};`,
+    onclick: () => {
+      // Remove selected class from all cards
+      document.querySelectorAll('.egypt-character-card').forEach(el => {
+        el.classList.remove('selected');
+      });
+      
+      // Add selected class to this card
+      const cardElement = document.querySelector(`[data-character-id="${character.id}"]`);
+      if (cardElement) {
+        cardElement.classList.add('selected');
+      }
+      
+      // Store selected character in localStorage
+      localStorage.setItem('selectedCharacter', character.id);
+      
+      // Emit character selected event
+      eventBus.emit('character:selected', { character });
+    }
+  }, [
+    // Character image
+    h('img', {
+      src: character.image,
+      alt: character.name,
+      class: 'egypt-character-image'
+    }, []),
     
-    // Add selected class to this card
-    card.classList.add('selected');
+    // Character name
+    h('h3', {
+      class: 'egypt-character-name',
+      style: `color: ${character.color};`
+    }, [character.name]),
     
-    // Store selected character in localStorage
-    localStorage.setItem('selectedCharacter', character.id);
+    // Character description
+    h('p', {
+      class: 'egypt-character-description'
+    }, [character.description]),
     
-    // Emit character selected event
-    eventBus.emit('character:selected', { character });
-  });
+    // Character abilities
+    h('p', {
+      class: 'egypt-character-abilities'
+    }, [`Special: ${character.abilities}`]),
+    
+    // Select button
+    h('button', {
+      class: 'egypt-select-button',
+      style: `background-color: ${character.color};`
+    }, ['Select'])
+  ]);
   
-  return card;
+  // Render the character card
+  return render(cardVNode) as HTMLElement;
 }
 
-// Add character selection styles
 function addCharacterSelectionStyles(): void {
   // Check if styles already exist
   if (document.getElementById('egypt-character-selection-styles')) return;
   
-  const style = document.createElement('style');
-  style.id = 'egypt-character-selection-styles';
-  style.textContent = `
+  // Create style element using the framework's h function
+  const styleVNode = h('style', {
+    id: 'egypt-character-selection-styles'
+  }, [
+    `
     .egypt-character-selection {
       margin-top: 20px;
       text-align: center;
@@ -430,56 +430,59 @@ function addCharacterSelectionStyles(): void {
     .egypt-characters-container {
       display: flex;
       justify-content: center;
-      gap: 20px;
       flex-wrap: wrap;
+      gap: 20px;
+      max-width: 1000px;
+      margin: 0 auto;
     }
     
     .egypt-character-card {
-      width: 200px;
-      background-color: rgba(126, 112, 83, 0.9);
-      border: 4px solid #d4af37;
+      background-color: rgba(0, 0, 0, 0.8);
+      border: 3px solid #d4af37;
+      border-radius: 10px;
       padding: 15px;
+      width: 200px;
       text-align: center;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      transition: all 0.3s;
+      color: #f5e7c1;
       cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
     
     .egypt-character-card:hover {
       transform: translateY(-5px);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
     }
     
     .egypt-character-card.selected {
       transform: scale(1.05);
-      box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+      box-shadow: 0 0 20px #d4af37;
     }
     
     .egypt-character-image {
-      width: 120px;
-      height: 120px;
+      width: 100px;
+      height: 100px;
       object-fit: contain;
       margin-bottom: 10px;
-      background-color: rgba(245, 231, 201, 0.7);
-      padding: 5px;
+      border-radius: 50%;
+      background-color: rgba(212, 175, 55, 0.2);
+      padding: 10px;
     }
     
     .egypt-character-name {
       font-family: 'Papyrus', 'Copperplate', fantasy;
-      font-size: 20px;
       margin: 0 0 10px 0;
+      font-size: 18px;
+      color: #d4af37;
     }
     
     .egypt-character-description {
-      font-family: 'Papyrus', 'Copperplate', fantasy;
-      font-size: 14px;
-      color: #f5f5f5;
+      font-size: 12px;
       margin-bottom: 10px;
+      color: #f5e7c1;
     }
     
     .egypt-character-abilities {
-      font-family: 'Papyrus', 'Copperplate', fantasy;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: bold;
       color: #d4af37;
       margin-bottom: 15px;
@@ -487,20 +490,25 @@ function addCharacterSelectionStyles(): void {
     
     .egypt-select-button {
       background-color: #d4af37;
-      color: #4a4233;
+      color: #000;
       border: none;
       padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
       font-family: 'Papyrus', 'Copperplate', fantasy;
       font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s;
+      transition: background-color 0.2s;
     }
     
     .egypt-select-button:hover {
-      transform: scale(1.1);
-      box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+      background-color: #f5e7c1;
     }
-  `;
+    `
+  ]);
   
-  document.head.appendChild(style);
+  // Render the style element
+  const renderedStyle = render(styleVNode) as HTMLElement;
+  
+  // Add to document head
+  document.head.appendChild(renderedStyle);
 }

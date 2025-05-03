@@ -65,28 +65,30 @@ function updateAllCountdownElements() {
 
 // Function to create a global floating countdown element
 function createGlobalCountdownElement() {
-  // Create a floating countdown element
-  const floatingCountdown = document.createElement('div');
-  floatingCountdown.id = 'floating-countdown';
-  floatingCountdown.className = 'game-countdown';
-  floatingCountdown.style.cssText = `
-    position: fixed;
-    top: 20px;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 2rem;
-    font-weight: bold;
-    color: #FF5252;
-    z-index: 9999;
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 10px;
-    border-radius: 5px;
-    margin: 0 auto;
-    width: fit-content;
-  `;
+  // Create a floating countdown element using the framework's h function
+  const floatingCountdownVNode = h('div', {
+    id: 'floating-countdown',
+    class: 'game-countdown',
+    style: `
+      position: fixed;
+      top: 20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #FF5252;
+      z-index: 9999;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      margin: 0 auto;
+      width: fit-content;
+    `
+  }, []);
   
-  // Add to the document
+  // Render and add to the document
+  const floatingCountdown = render(floatingCountdownVNode) as HTMLElement;
   document.body.appendChild(floatingCountdown);
   
   // Update the element
@@ -1178,20 +1180,24 @@ function addChatMessage(sender: string, message: string, messagesContainer: HTML
 
 // Show error message
 function showErrorMessage(message: string): void {
-  const errorMessage = document.createElement('div');
-  errorMessage.style.cssText = `
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(255, 0, 0, 0.8);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
-    z-index: 9999;
-  `;
-  errorMessage.textContent = message;
+  // Create error message using the framework's h function
+  const errorMessageVNode = h('div', {
+    style: `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(255, 0, 0, 0.8);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      z-index: 9999;
+    `
+  }, [message]);
+  
+  // Render and add to the document
+  const errorMessage = render(errorMessageVNode) as HTMLElement;
   document.body.appendChild(errorMessage);
   
   // Remove error message after 5 seconds
