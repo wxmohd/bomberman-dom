@@ -20,7 +20,10 @@ export function initRenderer(container: HTMLElement): void {
       align-items: center;
       width: 100%;
       height: 100%;
-      background-color: #222;
+      background-image: url('/img/background.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
       position: absolute;
       top: 0;
       left: 0;
@@ -32,7 +35,7 @@ export function initRenderer(container: HTMLElement): void {
       position: relative;
       width: ${GRID_WIDTH * TILE_SIZE}px;
       height: ${GRID_HEIGHT * TILE_SIZE}px;
-      background-color: #7ABD7E;
+      background-color: #e4c49b; /* Egyptian sand color */
       overflow: hidden;
       box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
       border-radius: 8px;
@@ -80,7 +83,7 @@ export function initRenderer(container: HTMLElement): void {
       position: relative;
       width: ${GRID_WIDTH * TILE_SIZE}px;
       height: ${GRID_HEIGHT * TILE_SIZE}px;
-      background-color: #7ABD7E;
+      background-color: #e4c49b; /* Egyptian sand color */
       overflow: hidden;
     `
   }, []);

@@ -4,9 +4,15 @@ import { connectToServer, disconnectFromServer, sendToServer, getSocketId, isCon
 import { initChat, addSystemMessage } from './multiplayer/chat';
 import { initChatUI } from './ui/chatUI';
 import { eventBus } from '../framework/events';
+import { h, render } from '../framework/dom';
 import { EVENTS, MoveEventData, DropBombEventData, CollectPowerupEventData } from './multiplayer/events';
 import { Direction } from './entities/player';
+import { TILE_SIZE } from './game/constants';
 import { initLobby } from './game/lobby';
+import { initEgyptTheme } from './ui/egyptTheme';
+
+// Import Egyptian theme CSS
+import './styles/egypt.css';
 
 // Connection state
 let isConnected = false;
@@ -19,20 +25,41 @@ document.addEventListener('DOMContentLoaded', () => {
   if (app) {
     app.innerHTML = '';
     
-    // Apply base styles immediately
-    document.body.style.margin = '0';
-    document.body.style.padding = '0';
-    document.body.style.overflow = 'hidden';
-    document.body.style.width = '100vw';
-    document.body.style.height = '100vh';
-    document.body.style.backgroundColor = '#1a1a1a';
+    // Apply base styles to body using the framework's approach
+    const bodyStyleVNode = h('style', {}, [
+      `
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        background-color: #f5e7c9; /* Egyptian theme background color */
+      }
+      `
+    ]);
     
-    // Make container full-page
-    app.style.width = '100vw';
-    app.style.height = '100vh';
-    app.style.position = 'relative';
-    app.style.overflow = 'hidden';
-    app.style.backgroundColor = '#1a1a1a';
+    // Render and append the body styles
+    document.head.appendChild(render(bodyStyleVNode) as HTMLElement);
+    
+    // Create app container with styles using the framework's h function
+    const appContainerVNode = h('div', {
+      id: 'app-container',
+      style: `
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+        overflow: hidden;
+        background-color: #f5e7c9; /* Egyptian theme background color */
+      `
+    }, []);
+    
+    // Render the app container
+    const renderedAppContainer = render(appContainerVNode) as HTMLElement;
+    
+    // Replace the app's content with the rendered container
+    app.innerHTML = '';
+    app.appendChild(renderedAppContainer);
     
     // Initialize the game immediately (skipping the old lobby)
     initGame();
@@ -40,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the lobby directly from here
     // This ensures only one lobby is shown
     initLobby(app);
+    
+    // Initialize Egyptian Pyramid theme
+    initEgyptTheme(app);
     
     // Remove any existing chat buttons that might be showing
     const existingButton = document.querySelector('.chat-toggle');
@@ -198,6 +228,117 @@ function setupEventListeners(): void {
     });
   });
   
+  // Remote powerup spawned - update game state
+  socket.on('powerup:spawned', (data: { x: number, y: number, type: string }) => {
+    console.log('Received powerup:spawned event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:spawned', data);
+    
+    // Also directly call the powerup spawning function to ensure it's created
+    import('./game/powerups').then(powerupModule => {
+      // Convert server powerup type to local enum
+      let powerupType;
+      switch (data.type) {
+        case 'BOMB':
+          powerupType = powerupModule.PowerUpType.BOMB;
+          break;
+        case 'FLAME':
+          powerupType = powerupModule.PowerUpType.FLAME;
+          break;
+        case 'SPEED':
+          powerupType = powerupModule.PowerUpType.SPEED;
+          break;
+        default:
+          powerupType = powerupModule.PowerUpType.BOMB; // Default fallback
+      }
+      
+      // Create a new powerup at the specified location
+      const powerup = new powerupModule.PowerUp(data.x, data.y, powerupType);
+      
+      // Get the map container and render the powerup
+      import('./game/renderer').then(rendererModule => {
+        const container = rendererModule.getMapContainer();
+        if (container) {
+          powerup.render(container);
+          console.log(`Rendered remote powerup at (${data.x}, ${data.y}) with type ${data.type}`);
+        }
+      });
+    }).catch(error => {
+      console.error('Failed to spawn remote powerup:', error);
+    });
+  });
+  
+  // Remote powerup collected - update game state
+  socket.on('powerup:collected', (data: { powerupId: string, playerId: string, type: string, x: number, y: number }) => {
+    console.log('Received powerup:collected event from server:', data);
+    // Forward to event bus for powerup system to handle
+    eventBus.emit('remote:powerup:collected', data);
+    
+    // Also directly handle the powerup collection to ensure it's removed
+    import('./game/powerups').then(powerupModule => {
+      // Find and remove the powerup at this position
+      const activePowerUps = powerupModule.getActivePowerUps();
+      const powerupIndex = activePowerUps.findIndex(p => p.isAt(data.x, data.y));
+      
+      if (powerupIndex !== -1) {
+        const powerup = activePowerUps[powerupIndex];
+        console.log(`Found powerup to collect at (${data.x}, ${data.y})`);
+        
+        // Collect the powerup
+        powerup.collect(data.playerId);
+        console.log(`Remote powerup collected by player ${data.playerId}`);
+      } else {
+        console.log(`No powerup found at position (${data.x}, ${data.y}) to collect`);
+        
+        // If we didn't find the powerup in the activePowerUps array, try to find it directly in the DOM
+        // This is a fallback for cases where the powerup might be in the DOM but not tracked in our array
+        const powerupElements = document.querySelectorAll('.powerup');
+        console.log(`Searching through ${powerupElements.length} powerup DOM elements`);
+        
+        powerupElements.forEach((el) => {
+          const powerupEl = el as HTMLElement;
+          const left = parseInt(powerupEl.style.left) / TILE_SIZE;
+          const top = parseInt(powerupEl.style.top) / TILE_SIZE;
+          
+          if (Math.floor(left) === data.x && Math.floor(top) === data.y) {
+            console.log(`Found powerup in DOM at position (${data.x}, ${data.y})`);
+            
+            // Add collection animation to the powerup
+            powerupEl.style.animation = 'powerup-collect 0.5s forwards';
+            
+            // Remove the powerup element after animation
+            setTimeout(() => {
+              if (powerupEl.parentNode) {
+                powerupEl.parentNode.removeChild(powerupEl);
+              }
+            }, 500);
+          }
+        });
+      }
+    }).catch(error => {
+      console.error('Failed to handle remote powerup collection:', error);
+    });
+  });
+  
+  // Remote player hit event from server
+  socket.on('player:hit', (data: { playerId: string, attackerId: string, timestamp: number }) => {
+    console.log('Received player:hit event from server:', data);
+    
+    // Forward to event bus for player system to handle
+    // Only forward if this is not the local player (local player already handled the hit)
+    const localPlayerId = localStorage.getItem('playerId');
+    
+    // We still emit the event for the local player if they were hit by another player
+    // This ensures the life count is synchronized properly
+    if (data.playerId !== localPlayerId || data.attackerId !== localPlayerId) {
+      console.log(`Forwarding remote player hit event: Player ${data.playerId} hit by ${data.attackerId}`);
+      eventBus.emit('player:hit', {
+        playerId: data.playerId,
+        attackerId: data.attackerId
+      });
+    }
+  });
+  
   // Player joined event
   eventBus.on('player:joined', (data: { id: string, nickname: string }) => {
     // Add system message
@@ -236,18 +377,246 @@ function setupEventListeners(): void {
     eventBus.emit('game:start', data);
   });
   
-  // Game ended
+  // Game ended - only triggered when the game is truly over (only one player remains)
   eventBus.on('game:ended', (data) => {
+    console.log('Game ended event received:', data);
+    
     // Add system message
     if (data.winner) {
       addSystemMessage(`Game over! ${data.winner.nickname} wins!`);
+      
+      // Check if this is the local player who won
+      const isLocalPlayerWinner = data.winner.id === playerId;
+      
+      // Check if this is a special case where a player won by killing the last opponent
+      // but was also eliminated in the process (lastManKill)
+      const isLastManKill = data.lastManKill === true;
+      
+      // Show game won message for the winner and game over for others
+      // In lastManKill case, we still want to show the winner even if they died too
+      showGameResult(data.winner.nickname, isLocalPlayerWinner, data.lastPlayerStanding || isLastManKill);
     } else {
       addSystemMessage('Game over!');
+      
+      // Show game over message for everyone
+      showGameResult(null, false, false);
     }
     
-    // End game
+    // End game and trigger game over state
     eventBus.emit('game:end', data);
+    eventBus.emit('game:over', data);
   });
+  
+  // Handle remote player elimination (from server)
+  eventBus.on('remote:player:eliminated', (data) => {
+    console.log('Remote player elimination event received from server:', data);
+    
+    // Forward to player:eliminated to ensure the player is removed from all clients
+    // This is especially important for self-elimination cases
+    eventBus.emit('player:eliminated', {
+      id: data.playerId,
+      eliminatedBy: data.attackerId
+    });
+    
+    // No need to show UI here as the server will send game:ended
+    // when the game is truly over (only one player remains)
+  });
+  
+  // Function to show game result (win/lose) with appropriate UI using Egyptian theme consistently
+  function showGameResult(winnerNickname: string | null, isLocalPlayerWinner: boolean, lastPlayerStanding: boolean): void {
+    // Create overlay for game result with Egyptian styling
+    const overlay = document.createElement('div');
+    overlay.className = 'game-result-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      animation: fade-in 0.5s ease;
+      background-image: url('/img/egypt-background.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    `;
+    
+    // Create message box with Egyptian styling
+    const messageBox = document.createElement('div');
+    messageBox.className = 'game-over';
+    messageBox.style.cssText = `
+      background-color: rgba(74, 66, 51, 0.9);
+      border: 5px solid #d4af37;
+      border-radius: 5px;
+      padding: 40px 60px;
+      text-align: center;
+      max-width: 80%;
+      box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+      position: relative;
+    `;
+    
+    // Add top decoration (Egyptian style)
+    const topDecoration = document.createElement('div');
+    topDecoration.style.cssText = `
+      position: absolute;
+      top: 10px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      color: #d4af37;
+    `;
+    topDecoration.innerHTML = '&#9778; &#9779; &#9780; &#9781;';
+    messageBox.appendChild(topDecoration);
+    
+    // Add bottom decoration (Egyptian style)
+    const bottomDecoration = document.createElement('div');
+    bottomDecoration.style.cssText = `
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      color: #d4af37;
+    `;
+    bottomDecoration.innerHTML = '&#9779; &#8753; &#8752; &#9779;';
+    messageBox.appendChild(bottomDecoration);
+    
+    // Create message with Egyptian styling
+    const message = document.createElement('h1');
+    
+    if (isLocalPlayerWinner) {
+      // Local player won
+      message.textContent = lastPlayerStanding ? 
+        'YOU WON! LAST PLAYER STANDING!' : 
+        'YOU WON THE GAME!';
+      message.style.color = '#d4af37'; // Egyptian gold for winner
+    } else if (winnerNickname) {
+      // Someone else won
+      message.textContent = `GAME OVER! ${winnerNickname} WINS!`;
+      message.style.color = '#d4af37'; // Egyptian gold for consistency
+    } else {
+      // No winner (draw)
+      message.textContent = 'GAME OVER! NO WINNER!';
+      message.style.color = '#d4af37'; // Egyptian gold for consistency
+    }
+    
+    message.style.cssText = `
+      font-size: 42px;
+      margin: 0 0 20px 0;
+      text-shadow: 0 0 10px rgba(245, 231, 193, 0.5);
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      animation: pulse 1.5s infinite alternate;
+      color: #d4af37;
+    `;
+    messageBox.appendChild(message);
+    
+    // Create hieroglyphic decoration
+    const hieroglyphics = document.createElement('div');
+    hieroglyphics.style.cssText = `
+      font-size: 24px;
+      color: #d4af37;
+      margin: 15px 0;
+    `;
+    hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
+    messageBox.appendChild(hieroglyphics);
+    
+    // Create back to menu button with Egyptian styling
+    const backToMenuButton = document.createElement('button');
+    backToMenuButton.textContent = 'Back to Menu';
+    backToMenuButton.style.cssText = `
+      background-color: #d4af37;
+      color: #4a4233;
+      border: 2px solid #e4c49b;
+      padding: 15px 30px;
+      font-size: 18px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 20px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+    `;
+    
+    backToMenuButton.addEventListener('mouseover', () => {
+      backToMenuButton.style.transform = 'scale(1.05)';
+      backToMenuButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.3)';
+    });
+    
+    backToMenuButton.addEventListener('mouseout', () => {
+      backToMenuButton.style.transform = 'scale(1)';
+      backToMenuButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    });
+    
+    backToMenuButton.addEventListener('click', () => {
+      // Remove overlay
+      document.body.removeChild(overlay);
+      
+      // Don't send end_game event to server as the game is already over
+      // This prevents changing the winner message for other players
+      
+      // Just clean up local state
+      eventBus.emit('game:cleanup', {});
+      
+      // Clear any stored player ID to ensure a fresh start
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('playerNickname');
+      
+      // Disconnect from the server but don't send end_game event
+      // Just close the connection locally
+      if (isConnectedToServer()) {
+        const socket = getSocket();
+        if (socket) {
+          socket.disconnect();
+        }
+      }
+      
+      // Set connected state to false
+      isConnected = false;
+      playerId = null;
+      
+      // Redirect to the start page (nickname entry)
+      window.location.href = '/';
+      window.location.reload(); // Force a full page reload to clear any lingering state
+    });
+    
+    messageBox.appendChild(backToMenuButton);
+    
+    // Add message box to overlay
+    overlay.appendChild(messageBox);
+    
+    // Add animations if not already added
+    if (!document.getElementById('game-result-animations')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'game-result-animations';
+      styleEl.textContent = `
+        @keyframes fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+    
+    // Add overlay to body
+    document.body.appendChild(overlay);
+  }
   
   // Socket connection events
   eventBus.on('socket:disconnected', () => {

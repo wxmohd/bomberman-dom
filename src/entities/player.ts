@@ -1,5 +1,6 @@
 // Player entity logic
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 import { TILE_SIZE } from '../game/constants';
 import { EVENTS } from '../multiplayer/events';
 import { sendToServer } from '../multiplayer/socket';
@@ -7,6 +8,7 @@ import { maybeSpawnPowerup, PowerUpType, checkAndCollectPowerUp } from '../game/
 
 // Game state tracking
 let isGamePaused = false;
+let isGameOver = false;
 
 export enum Direction {
   UP,
@@ -108,6 +110,19 @@ export class Player {
       isGamePaused = false;
     });
     
+    // Listen for game over events
+    eventBus.on('game:end', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:over', () => {
+      isGameOver = true;
+    });
+    
+    eventBus.on('game:reset', () => {
+      isGameOver = false;
+    });
+    
     // Set up keyboard controls if this is the local player
     if (this.isLocalPlayer()) {
       this.setupKeyboardControls();
@@ -131,80 +146,95 @@ export class Player {
     this.emitPositionUpdate();
   }
   
+  // Remove the player's visual element from the DOM
+  public removePlayerElement(): void {
+    // Remove player element from DOM if it exists
+    if (this.playerElement && this.playerElement.parentNode) {
+      // Add a fade-out animation - we'll use direct style updates for the animation
+      // as it's more efficient for transitions
+      this.playerElement.style.transition = 'opacity 0.5s';
+      this.playerElement.style.opacity = '0';
+      
+      // Remove the element after animation completes
+      setTimeout(() => {
+        if (this.playerElement && this.playerElement.parentNode) {
+          // Use the parent node's removeChild method which is framework-agnostic
+          this.playerElement.parentNode.removeChild(this.playerElement);
+          this.playerElement = null;
+          this.nameTagElement = null;
+        }
+      }, 500);
+    }
+  }
+  
   // Create the player's visual element
   private createPlayerElement(container: HTMLElement): void {
     console.log(`Creating player element for player ${this.id} (${this.nickname}) at position ${this.x},${this.y}`);
     console.log(`Container:`, container);
     
-    // Create player element
-    const playerEl = document.createElement('div');
-    playerEl.className = 'player';
-    playerEl.id = `player-${this.id}`;
-    
-    // Style the player
-    playerEl.style.position = 'absolute';
-    playerEl.style.left = `${this.x * TILE_SIZE}px`;
-    playerEl.style.top = `${this.y * TILE_SIZE}px`;
-    playerEl.style.width = `${TILE_SIZE}px`;
-    playerEl.style.height = `${TILE_SIZE}px`;
-    
-    // Set player color based on player number
-    const playerColors = [
-      '#FF5252', // Red (Player 1)
-      '#4CAF50', // Green (Player 2)
-      '#2196F3', // Blue (Player 3)
-      '#FFC107'  // Yellow (Player 4)
+    // Player character images based on player number
+    const playerImages = [
+      '/img/IK.png',  // Player 1
+      '/img/MMD.png', // Player 2
+      '/img/WA.png',  // Player 3
+      '/img/MG.png'   // Player 4
     ];
-    const colorIndex = (this.playerNumber - 1) % playerColors.length;
-    const playerColor = playerColors[colorIndex];
+    const imageIndex = (this.playerNumber - 1) % playerImages.length;
+    const playerImage = playerImages[imageIndex];
     
-    playerEl.style.backgroundColor = playerColor;
-    playerEl.style.borderRadius = '50%';
-    playerEl.style.zIndex = '1000';
-    playerEl.style.boxShadow = `0 0 15px 5px ${playerColor}80`; // Add semi-transparent glow matching player color
-    playerEl.style.border = '2px solid white';
-    playerEl.style.boxSizing = 'border-box';
-    playerEl.style.transition = 'left 0.1s, top 0.1s';
+    // Create name tag content
+    const nameTagText = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
     
-    console.log(`Player element created:`, playerEl);
+    // Create player element using the framework's h function
+    const nameTagVNode = h('div', {
+      style: `
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+        white-space: nowrap;
+      `
+    }, [nameTagText]);
     
-    // Add inner element for better visibility
-    const innerElement = document.createElement('div');
-    innerElement.style.position = 'absolute';
-    innerElement.style.width = '60%';
-    innerElement.style.height = '60%';
-    innerElement.style.top = '20%';
-    innerElement.style.left = '20%';
-    innerElement.style.backgroundColor = 'white';
-    innerElement.style.borderRadius = '50%';
-    playerEl.appendChild(innerElement);
+    const playerVNode = h('div', {
+      class: 'player',
+      id: `player-${this.id}`,
+      style: `
+        position: absolute;
+        left: ${this.x * TILE_SIZE}px;
+        top: ${this.y * TILE_SIZE}px;
+        width: ${TILE_SIZE}px;
+        height: ${TILE_SIZE}px;
+        background-image: url(${playerImage});
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-color: transparent;
+        z-index: 1000;
+        box-sizing: border-box;
+        transition: left 0.1s, top 0.1s;
+      `
+    }, [nameTagVNode]);
     
-    // Add name tag
-    const nameTag = document.createElement('div');
-    nameTag.textContent = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
-    nameTag.style.position = 'absolute';
-    nameTag.style.bottom = '100%';
-    nameTag.style.left = '50%';
-    nameTag.style.transform = 'translateX(-50%)';
-    nameTag.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    nameTag.style.color = 'white';
-    nameTag.style.padding = '2px 5px';
-    nameTag.style.borderRadius = '3px';
-    nameTag.style.fontSize = '12px';
-    nameTag.style.whiteSpace = 'nowrap';
-    
-    playerEl.appendChild(nameTag);
+    // Render the player element using the framework's render function
+    const renderedPlayer = render(playerVNode) as HTMLElement;
+    console.log(`Player element created:`, renderedPlayer);
     
     // Add to container
-    container.appendChild(playerEl);
+    container.appendChild(renderedPlayer);
     console.log(`Player element added to container`);
     
     // Store references
-    this.playerElement = playerEl;
-    this.nameTagElement = nameTag;
+    this.playerElement = renderedPlayer;
+    this.nameTagElement = renderedPlayer.firstChild as HTMLElement;
     
     // Force a reflow to ensure the player is visible
-    void playerEl.offsetWidth;
+    void renderedPlayer.offsetWidth;
     
     // Double-check that the player is in the DOM
     setTimeout(() => {
@@ -215,53 +245,20 @@ export class Player {
         console.error(`Player ${this.id} is NOT in the DOM!`);
         // Try adding it again
         if (this.gameContainer) {
-          this.gameContainer.appendChild(playerEl);
+          this.gameContainer.appendChild(renderedPlayer);
           console.log(`Attempted to add player element again`);
         }
       }
     }, 500);
     
-    // Add CSS for player animations
-    if (!document.getElementById('player-animations')) {
-      const style = document.createElement('style');
-      style.id = 'player-animations';
-      style.textContent = `
-        @keyframes player-pulse {
-          0% { transform: scale(1); box-shadow: 0 0 15px 5px rgba(255,0,0,0.7); }
-          100% { transform: scale(1.1); box-shadow: 0 0 20px 8px rgba(255,0,0,0.9); }
-        }
-        
-        @keyframes player-hit {
-          0% { transform: scale(1); background-color: inherit; }
-          50% { transform: scale(1.2); background-color: red; }
-          100% { transform: scale(1); background-color: inherit; }
-        }
-        
-        .player.local {
-          animation: player-pulse 0.8s infinite alternate;
-        }
-        
-        .player.invulnerable {
-          opacity: 0.7;
-          animation: player-pulse 0.3s infinite alternate;
-        }
-        
-        .player.hit {
-          animation: player-hit 0.5s ease-in-out;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Add local player class if this is the local player
-    if (this.isLocalPlayer()) {
-      playerEl.classList.add('local');
-    }
+    // No animations for player characters to keep the original images clean
   }
   
   // Update the visual position of the player
   private updateVisualPosition(): void {
     if (this.playerElement) {
+      // For player movement, we'll use direct style updates for performance
+      // This is a common optimization even in frameworks
       this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
       this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
     }
@@ -359,9 +356,9 @@ export class Player {
         return;
       }
       
-      // Skip if game is paused
-      if (isGamePaused) {
-        console.log('Game is paused, ignoring keyboard input');
+      // Skip if game is paused or game is over
+      if (isGamePaused || isGameOver) {
+        console.log('Game is paused or over, ignoring keyboard input');
         return;
       }
       
@@ -429,8 +426,13 @@ export class Player {
   
   // Check if a position is valid for movement
   private isValidPosition(x: number, y: number): boolean {
-    // Prevent going out of bounds
-    if (x < 1 || y < 1 || x >= 14 || y >= 14) {
+    // Define map dimensions - using constants directly
+    // The map is 15x17 (0-14 x 0-16)
+    const GRID_WIDTH = 14;
+    const GRID_HEIGHT = 16;
+    
+    // Prevent going out of bounds - allow movement to the full extent of the map
+    if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) {
       return false;
     }
     
@@ -438,13 +440,14 @@ export class Player {
     const gridX = Math.floor(x);
     const gridY = Math.floor(y);
     
-    // Check for fixed walls (grid pattern)
+    // Check for fixed walls (grid pattern) in all areas of the map
+    // Apply this rule to all rows including the bottom rows
     if (gridX % 2 === 0 && gridY % 2 === 0) {
       return false; // Wall at even coordinates
     }
     
-    // Check for border walls
-    if (gridX === 0 || gridY === 0 || gridX === 14 || gridY === 14) {
+    // Check for border walls - only the very edge is a wall
+    if (gridX === 0 || gridY === 0) {
       return false;
     }
     
@@ -509,7 +512,24 @@ export class Player {
     
     console.log(`Applying power-up to player ${this.id}:`, data);
     
-    switch (data.type) {
+    // Convert string type to enum if needed
+    let powerupType = data.type;
+    if (typeof data.type === 'string') {
+      switch (data.type.toLowerCase()) {
+        case 'bomb':
+          powerupType = PowerUpType.BOMB;
+          break;
+        case 'flame':
+          powerupType = PowerUpType.FLAME;
+          break;
+        case 'speed':
+          powerupType = PowerUpType.SPEED;
+          break;
+      }
+    }
+    
+    // Apply the specific power-up effect based on type
+    switch (powerupType) {
       case PowerUpType.BOMB:
         this.bombCapacity += 1;
         console.log(`Increased bomb capacity to ${this.bombCapacity}`);
@@ -528,6 +548,7 @@ export class Player {
         break;
       default:
         console.log(`Unknown power-up type: ${data.type}`);
+        return; // Exit early if unknown type
     }
     
     // Emit stats update event
@@ -573,74 +594,104 @@ export class Player {
         const powerUpType = powerUpEl.getAttribute('data-type');
         console.log(`Power-up type: ${powerUpType}`);
         
-        if (powerUpType) {
-          // Create a floating notification
-          const notification = document.createElement('div');
-          notification.className = 'powerup-notification';
-          
-          // Get the icon based on power-up type
-          let icon = '?';
-          if (powerUpType === 'bomb') icon = '💣';
-          if (powerUpType === 'flame') icon = '🔥';
-          if (powerUpType === 'speed') icon = '⚡';
-          
-          notification.textContent = `${icon} +1`;
-          notification.style.cssText = `
-            position: absolute;
-            left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
-            top: ${gridY * TILE_SIZE}px;
-            color: white;
-            font-weight: bold;
-            font-size: 16px;
-            text-shadow: 0 0 3px black;
-            z-index: 1000;
-            pointer-events: none;
-            animation: float-up 1.5s forwards;
-          `;
-          
-          // Add float-up animation if it doesn't exist
-          if (!document.getElementById('float-up-animation')) {
-            const styleEl = document.createElement('style');
-            styleEl.id = 'float-up-animation';
-            styleEl.textContent = `
-              @keyframes float-up {
-                0% { transform: translateY(0); opacity: 1; }
-                100% { transform: translateY(-50px); opacity: 0; }
-              }
-            `;
-            document.head.appendChild(styleEl);
-          }
-          
-          // Add notification to the DOM
-          document.body.appendChild(notification);
-          
-          // Remove notification after animation
-          setTimeout(() => {
-            if (notification.parentNode) {
-              notification.parentNode.removeChild(notification);
-            }
-          }, 1500);
-          
-          // Remove the power-up element from the DOM
-          powerUpEl.remove();
-          
-          // Emit a power-up applied event with visual verification
-          eventBus.emit('powerup:applied', {
-            playerId: this.id,
-            type: powerUpType,
-            source: 'visual_verification'
-          });
-          
-          // Also emit the collected event for the HUD
-          eventBus.emit('powerup:collected', {
-            playerId: this.id,
-            type: powerUpType,
-            position: { x: gridX, y: gridY }
-          });
-          
-          console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
-          foundPowerUp = true;
+        // Skip if we already found a powerup at this position or if the type is missing
+        if (foundPowerUp || !powerUpType) {
+          return;
         }
+        
+        // Create a floating notification
+        const notification = document.createElement('div');
+        notification.className = 'powerup-notification';
+        
+        // Create icon element based on power-up type
+        let iconElement = document.createElement('span');
+        
+        if (powerUpType === 'bomb') {
+          const bombImg = document.createElement('img');
+          bombImg.src = '/img/Bomb.png';
+          bombImg.style.width = '20px';
+          bombImg.style.height = '20px';
+          bombImg.style.verticalAlign = 'middle';
+          iconElement.appendChild(bombImg);
+        } else if (powerUpType === 'flame') {
+          iconElement.textContent = '🔥';
+        } else if (powerUpType === 'speed') {
+          iconElement.textContent = '⚡';
+        } else {
+          iconElement.textContent = '?';
+        }
+        
+        // Add the icon and text
+        notification.appendChild(iconElement);
+        notification.appendChild(document.createTextNode(' +1'));
+        notification.style.cssText = `
+          position: absolute;
+          left: ${gridX * TILE_SIZE + TILE_SIZE / 2}px;
+          top: ${gridY * TILE_SIZE}px;
+          color: white;
+          font-weight: bold;
+          font-size: 16px;
+          text-shadow: 0 0 3px black;
+          z-index: 1000;
+          pointer-events: none;
+          animation: float-up 1.5s forwards;
+        `;
+        
+        // Add float-up animation if it doesn't exist
+        if (!document.getElementById('float-up-animation')) {
+          const styleEl = document.createElement('style');
+          styleEl.id = 'float-up-animation';
+          styleEl.textContent = `
+            @keyframes float-up {
+              0% { transform: translateY(0); opacity: 1; }
+              100% { transform: translateY(-50px); opacity: 0; }
+            }
+          `;
+          document.head.appendChild(styleEl);
+        }
+        
+        // Add notification to the DOM
+        document.body.appendChild(notification);
+        
+        // Remove notification after animation
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 1500);
+        
+        // Remove the power-up element from the DOM
+        powerUpEl.remove();
+        
+        // Mark that we found a powerup to prevent processing multiple powerups at once
+        foundPowerUp = true;
+        
+        // First send to server for websocket synchronization
+        // This ensures other players see the powerup disappear immediately
+        sendToServer(EVENTS.COLLECT_POWERUP, {
+          playerId: this.id,
+          powerupId: `powerup_${Date.now()}`,
+          powerupType: powerUpType,
+          x: gridX,
+          y: gridY
+        });
+        
+        // Then emit a power-up applied event with visual verification
+        // This is what actually applies the powerup effect to the player
+        eventBus.emit('powerup:applied', {
+          playerId: this.id,
+          type: powerUpType,
+          source: 'visual_verification'
+        });
+        
+        // Also emit the collected event for the HUD
+        eventBus.emit('powerup:collected', {
+          playerId: this.id,
+          type: powerUpType,
+          position: { x: gridX, y: gridY }
+        });
+        
+        console.log(`Player ${this.id} collected a ${powerUpType} power-up at (${gridX}, ${gridY}) with visual verification`);
       } else {
         console.log(`No match: Player at (${gridX}, ${gridY}), Power-up at (${Math.floor(left)}, ${Math.floor(top)})`);
       }
@@ -729,16 +780,46 @@ export class Player {
       livesRemaining: this.lives
     });
     
+    // Always send hit event to server for websocket synchronization
+    // This is critical for self-elimination cases too
+    console.log(`Sending player_hit event to server: ${this.id} hit by ${data.attackerId || this.id}`);
+    sendToServer(EVENTS.PLAYER_HIT, {
+      playerId: this.id,
+      attackerId: data.attackerId || this.id
+    });
+    
     // Make player invulnerable temporarily
     this.setInvulnerable();
     
     // Check if player is eliminated
     if (this.lives <= 0) {
       console.log(`Player ${this.id} (${this.nickname}) has been eliminated!`);
+      
+      // Remove player's visual element immediately
+      this.removePlayerElement();
+      
+      // Emit local event for player elimination
       eventBus.emit('player:eliminated', {
         id: this.id,
-        eliminatedBy: data.attackerId
+        eliminatedBy: data.attackerId || this.id
       });
+      
+      // Send player elimination to server for websocket synchronization
+      // Always send elimination event with explicit attackerId
+      sendToServer('player_eliminated', {
+        playerId: this.id,
+        attackerId: data.attackerId || this.id // Ensure there's always an attackerId, use self-id if none provided
+      });
+      
+      // Force a direct server-side player elimination notification for self-elimination
+      if (data.attackerId === this.id) {
+        console.log('Self-elimination detected, sending direct elimination notification');
+        sendToServer(EVENTS.PLAYER_ELIMINATED, {
+          playerId: this.id,
+          attackerId: this.id,
+          forceBroadcast: true // Special flag to ensure server broadcasts this
+        });
+      }
     }
   }
   
@@ -869,7 +950,6 @@ export class Player {
       transform: translateX(-50%);
       width: 4px;
       height: 10px;
-      background-color: #FF4500;
       z-index: 801;
     `;
     bomb.appendChild(fuse);
@@ -1014,7 +1094,16 @@ export class Player {
           
           if (playerX === Math.floor(explosionX) && playerY === Math.floor(explosionY)) {
             console.log(`Local player hit by own bomb explosion at (${explosionX}, ${explosionY})`);
+            
+            // Emit local hit event
             eventBus.emit('player:hit', {
+              playerId: this.id,
+              attackerId: this.id
+            });
+            
+            // Also send hit event to server for self-damage
+            // This ensures other clients know about self-elimination
+            sendToServer(EVENTS.PLAYER_HIT, {
               playerId: this.id,
               attackerId: this.id
             });
@@ -1055,19 +1144,19 @@ export class Player {
           100% { transform: scale(0); opacity: 0; }
         }
         
-        @keyframes green-space-appear {
-          0% { transform: scale(0); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        // @keyframes green-space-appear {
+        //   0% { transform: scale(0); opacity: 0; }
+        //   100% { transform: scale(1); opacity: 1; }
+        // }
         
         @keyframes powerup-spawn-indicator {
           0% { transform: scale(0); opacity: 1; }
           100% { transform: scale(2); opacity: 0; }
         }
         
-        .green-space {
-          animation: green-space-appear 0.3s forwards;
-        }
+        // .green-space {
+        //   animation: green-space-appear 0.3s forwards;
+        // }
       `;
       document.head.appendChild(style);
     }
@@ -1075,13 +1164,23 @@ export class Player {
   
   // Check if an explosion can reach this position
   private isValidExplosionPosition(x: number, y: number): boolean {
-    // Can't explode through walls
+    // Define map dimensions - using constants directly
+    const GRID_WIDTH = 14;
+    const GRID_HEIGHT = 16;
+    
+    // Can't explode outside the map boundaries
+    if (x < 0 || y < 0 || x > GRID_WIDTH || y > GRID_HEIGHT) {
+      return false;
+    }
+    
+    // Can't explode through fixed walls (grid pattern) in all areas of the map
+    // Apply this rule to all rows including the bottom rows
     if (x % 2 === 0 && y % 2 === 0) {
       return false; // Wall at even coordinates
     }
     
-    // Can't explode through border walls
-    if (x === 0 || y === 0 || x === 14 || y === 14) {
+    // Can't explode through border walls - only the very edge is a wall
+    if (x === 0 || y === 0) {
       return false;
     }
     
@@ -1152,20 +1251,20 @@ export class Player {
         // Animate block destruction
         blockEl.style.animation = 'block-destroy 0.5s forwards';
         
-        // Create a green space where the block was
-        const greenSpace = document.createElement('div');
-        greenSpace.className = 'green-space';
-        greenSpace.style.position = 'absolute';
-        greenSpace.style.left = blockEl.style.left;
-        greenSpace.style.top = blockEl.style.top;
-        greenSpace.style.width = `${TILE_SIZE}px`;
-        greenSpace.style.height = `${TILE_SIZE}px`;
-        greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
-        greenSpace.style.zIndex = '5'; // Below player but above background
+        // Create an empty space where the block was
+        const emptySpace = document.createElement('div');
+        emptySpace.className = 'empty-space';
+        emptySpace.style.position = 'absolute';
+        emptySpace.style.left = blockEl.style.left;
+        emptySpace.style.top = blockEl.style.top;
+        emptySpace.style.width = `${TILE_SIZE}px`;
+        emptySpace.style.height = `${TILE_SIZE}px`;
+        emptySpace.style.backgroundColor = 'transparent'; // Transparent background
+        emptySpace.style.zIndex = '5'; // Below player but above background
         
-        // Add green space to the game container
+        // Add empty space to the game container
         if (this.gameContainer) {
-          this.gameContainer.appendChild(greenSpace);
+          this.gameContainer.appendChild(emptySpace);
         }
         
         // Remove block after animation
