@@ -2,6 +2,7 @@
 import { generateMap, resetMap } from './map';
 import { initRenderer, renderMap, getMapContainer } from './renderer';
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 import { clearPowerUps, PowerUp, PowerUpType, getActivePowerUps } from './powerups';
 import { init as initHUD, resetPowerUps } from '../ui/hud';
 import { initLobby, playerStore } from './lobby';
@@ -28,23 +29,9 @@ let currentMapData: any = null;
 // Initialize player instances array
 window.playerInstances = window.playerInstances || [];
 
-// Function to create player directly with DOM manipulation as fallback
+// Function to create player directly with framework's h and render functions
 function createPlayerDirectly(container: HTMLElement, id: string, nickname: string, x: number, y: number): void {
-  console.log(`Creating player directly with DOM: ${nickname} at ${x},${y}`);
-  
-  // Create player element
-  const playerEl = document.createElement('div');
-  playerEl.className = 'player';
-  playerEl.id = `player-${id}`;
-  
-  // Style the player
-  playerEl.style.position = 'absolute';
-  playerEl.style.left = `${x * TILE_SIZE}px`;
-  playerEl.style.top = `${y * TILE_SIZE}px`;
-  playerEl.style.width = `${TILE_SIZE}px`;
-  playerEl.style.height = `${TILE_SIZE}px`;
-  playerEl.style.zIndex = '1000';
-  playerEl.style.boxSizing = 'border-box';
+  console.log(`Creating player with framework: ${nickname} at ${x},${y}`);
   
   // Determine player number based on existing players
   const existingPlayers = document.querySelectorAll('.player').length;
@@ -60,32 +47,50 @@ function createPlayerDirectly(container: HTMLElement, id: string, nickname: stri
   const imageIndex = (playerNumber - 1) % playerImages.length;
   const playerImage = playerImages[imageIndex];
   
-  // Set background image instead of color
-  playerEl.style.backgroundImage = `url(${playerImage})`;
-  playerEl.style.backgroundSize = 'contain';
-  playerEl.style.backgroundPosition = 'center';
-  playerEl.style.backgroundRepeat = 'no-repeat';
-  playerEl.style.backgroundColor = 'transparent';
+  // Create name tag content
+  const nameTagText = id === localStorage.getItem('playerId') ? `${nickname} (You)` : nickname;
   
-  // No inner element to keep the character images clean
+  // Create name tag using h function
+  const nameTagVNode = h('div', {
+    style: `
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      white-space: nowrap;
+    `
+  }, [nameTagText]);
   
-  // Add name tag
-  const nameTag = document.createElement('div');
-  nameTag.textContent = id === localStorage.getItem('playerId') ? `${nickname} (You)` : nickname;
-  nameTag.style.position = 'absolute';
-  nameTag.style.bottom = '100%';
-  nameTag.style.left = '50%';
-  nameTag.style.transform = 'translateX(-50%)';
-  nameTag.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-  nameTag.style.color = 'white';
-  nameTag.style.padding = '2px 5px';
-  nameTag.style.borderRadius = '3px';
-  nameTag.style.fontSize = '12px';
-  nameTag.style.whiteSpace = 'nowrap';
-  playerEl.appendChild(nameTag);
+  // Create player element using h function
+  const playerVNode = h('div', {
+    class: 'player',
+    id: `player-${id}`,
+    style: `
+      position: absolute;
+      left: ${x * TILE_SIZE}px;
+      top: ${y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-image: url(${playerImage});
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: transparent;
+      z-index: 1000;
+      box-sizing: border-box;
+    `
+  }, [nameTagVNode]);
+  
+  // Render the player element
+  const renderedPlayer = render(playerVNode) as HTMLElement;
   
   // Add to container
-  container.appendChild(playerEl);
+  container.appendChild(renderedPlayer);
   console.log(`Player element added to container`);
 }
 
@@ -774,10 +779,10 @@ function startGame(container: HTMLElement, gameData?: any) {
         greenSpace.style.backgroundColor = '#7ABD7E'; // Green color
         greenSpace.style.zIndex = '5'; // Below player but above background
         
-        // Add green space to the game container
-        if (mapContainer) {
-          mapContainer.appendChild(greenSpace);
-        }
+        // // Add green space to the game container
+        // if (mapContainer) {
+        //   mapContainer.appendChild(greenSpace);
+        // }
         
         // Remove block after animation
         setTimeout(() => {
@@ -807,18 +812,13 @@ function startGame(container: HTMLElement, gameData?: any) {
           100% { transform: scale(0); opacity: 0; }
         }
         
-        @keyframes green-space-appear {
-          0% { transform: scale(0); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        
         
         .explosion {
           pointer-events: none;
         }
         
-        .green-space {
-          animation: green-space-appear 0.3s forwards;
-        }
+        
       `;
       document.head.appendChild(style);
     }

@@ -1,6 +1,8 @@
 // Game HUD UI (lives, timer, power-ups)
 import { PowerUpType } from '../game/powerups';
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
+import { isConnectedToServer, getSocket } from '../multiplayer/socket';
 
 // Store player power-ups and lives
 interface PlayerPowerUps {
@@ -34,16 +36,22 @@ let pauseOverlay: HTMLElement | null = null;
 export function initHUD(): void {
   // Create HUD container if it doesn't exist
   if (!hudContainer) {
-    // Create the HUD container immediately at default position
-    hudContainer = document.createElement('div');
-    hudContainer.id = 'game-hud';
-    hudContainer.style.position = 'fixed';
-    hudContainer.style.top = '80px';
-    hudContainer.style.left = '10px';
-    hudContainer.style.display = 'flex';
-    hudContainer.style.flexDirection = 'column';
-    hudContainer.style.gap = '10px';
-    hudContainer.style.zIndex = '100';
+    // Create the HUD container using the framework's h function
+    const hudContainerVNode = h('div', {
+      id: 'game-hud',
+      style: `
+        position: fixed;
+        top: 80px;
+        left: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 100;
+      `
+    }, []);
+    
+    // Render the HUD container
+    hudContainer = render(hudContainerVNode) as HTMLElement;
     document.body.appendChild(hudContainer);
     
     // Add HUD styles
@@ -111,9 +119,11 @@ export function init(): void {
 function addHUDStyles(): void {
   if (document.getElementById('game-hud-styles')) return;
   
-  const styleEl = document.createElement('style');
-  styleEl.id = 'game-hud-styles';
-  styleEl.textContent = `
+  // Create style element using the framework's h function
+  const styleVNode = h('style', {
+    id: 'game-hud-styles'
+  }, [
+    `
     .player-powerups {
       background-color: rgba(255, 158, 196, 0.8);
       border: 3px solid #ff6bac;
@@ -198,10 +208,15 @@ function addHUDStyles(): void {
     .icon-bomb:before { content: '💣'; }
     .icon-flame:before { content: '🔥'; }
     .icon-speed:before { content: '⚡'; }
-    .icon-heart:before { content: '❤️'; }
-  `;
+    .icon-life:before { content: '❤️'; }
+    `
+  ]);
   
-  document.head.appendChild(styleEl);
+  // Render the style element
+  const renderedStyle = render(styleVNode) as HTMLElement;
+  
+  // Add to document head
+  document.head.appendChild(renderedStyle);
 }
 
 // Handle power-up collected event
@@ -299,55 +314,63 @@ function showPauseOverlay(): void {
   // Remove existing overlay if it exists
   hidePauseOverlay();
   
-  // Create pause overlay
-  pauseOverlay = document.createElement('div');
-  pauseOverlay.className = 'pause-overlay';
-  pauseOverlay.style.position = 'fixed';
-  pauseOverlay.style.top = '0';
-  pauseOverlay.style.left = '0';
-  pauseOverlay.style.width = '100%';
-  pauseOverlay.style.height = '100%';
-  pauseOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-  pauseOverlay.style.display = 'flex';
-  pauseOverlay.style.flexDirection = 'column';
-  pauseOverlay.style.justifyContent = 'center';
+  // Create title using h function
+  const titleVNode = h('h2', {
+    style: `
+      color: #f5e7c1;
+      font-size: 24px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    `
+  }, ['Game Paused']);
   
-  // Create message box
-  const messageBox = document.createElement('div');
-  messageBox.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-  messageBox.style.padding = '20px';
-  messageBox.style.borderRadius = '10px';
-  messageBox.style.border = '3px solid #d4af37';
-  messageBox.style.textAlign = 'center';
-  messageBox.style.maxWidth = '500px';
-  messageBox.style.display = 'flex';
-  messageBox.style.flexDirection = 'column';
-  messageBox.style.justifyContent = 'center';
+  // Create instructions using h function
+  const instructionsVNode = h('p', {
+    style: `
+      color: #d4af37;
+      font-size: 16px;
+      margin-top: 10px;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+    `
+  }, ['Press R to resume']);
   
-  // Create title
-  const title = document.createElement('h2');
-  title.style.color = '#f5e7c1';
-  title.style.fontSize = '24px';
-  title.style.marginTop = '5px';
-  title.style.marginBottom = '10px';
-  title.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
-  title.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.5)';
-  title.textContent = 'Game Paused';
+  // Create message box using h function
+  const messageBoxVNode = h('div', {
+    style: `
+      background-color: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border-radius: 10px;
+      border: 3px solid #d4af37;
+      text-align: center;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin: 0 auto;
+    `
+  }, [titleVNode, instructionsVNode]);
   
-  // Create instructions
-  const instructions = document.createElement('p');
-  instructions.style.color = '#d4af37';
-  instructions.style.fontSize = '16px';
-  instructions.style.marginTop = '10px';
-  instructions.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
-  instructions.textContent = 'Press R to resume';
+  // Create pause overlay using h function
+  const pauseOverlayVNode = h('div', {
+    class: 'pause-overlay',
+    style: `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      z-index: 10000;
+    `
+  }, [messageBoxVNode]);
   
-  // Add elements to message box
-  messageBox.appendChild(title);
-  messageBox.appendChild(instructions);
-  
-  // Add message box to overlay
-  pauseOverlay.appendChild(messageBox);
+  // Render the pause overlay
+  pauseOverlay = render(pauseOverlayVNode) as HTMLElement;
   
   // Add to body
   document.body.appendChild(pauseOverlay);
@@ -363,24 +386,6 @@ function hidePauseOverlay(): void {
 
 // Create HUD for a single player
 function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: number; speed: number; lives: number }): HTMLElement {
-  const playerDiv = document.createElement('div');
-  playerDiv.className = 'player-powerups';
-  playerDiv.id = `player-powerups-${playerId}`;
-  
-  // Apply enhanced Egyptian theme styling
-  playerDiv.style.cssText = `
-    background-color: rgba(210, 180, 140, 0.9);
-    border: 3px solid #d4af37;
-    border-radius: 10px;
-    padding: 15px;
-    color: #5D4037;
-    font-family: 'Papyrus', 'Copperplate', fantasy;
-    min-width: 180px;
-    margin-bottom: 15px;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
-    background-image: linear-gradient(rgba(210, 180, 140, 0.9), rgba(245, 222, 179, 0.9));
-  `;
-  
   // Get player nickname from localStorage or use default
   let playerNickname = 'Player';
   let characterTitle = 'Mummy';
@@ -402,102 +407,165 @@ function createPlayerHUD(playerId: string, powerups: { bombs: number; flames: nu
     playerNickname = `${playerNickname} (${characterTitle})`;
   }
   
-  // Create player header with enhanced Egyptian styling
-  const header = document.createElement('h3');
-  header.textContent = playerNickname;
-  header.style.cssText = `
-    margin: 0 0 15px 0;
-    font-size: 18px;
-    font-weight: bold;
-    color: #5D4037;
-    border-bottom: 2px solid #d4af37;
-    padding-bottom: 8px;
-    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
-    text-align: center;
-  `;
-  playerDiv.appendChild(header);
+  // Create header using h function
+  const headerVNode = h('h3', {
+    style: `
+      margin: 0 0 15px 0;
+      font-size: 18px;
+      font-weight: bold;
+      color: #5D4037;
+      border-bottom: 2px solid #d4af37;
+      padding-bottom: 8px;
+      text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    `
+  }, [playerNickname]);
   
-  // Create stat container with Egyptian styling
-  const statsContainer = document.createElement('div');
-  statsContainer.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  `;
-  
-  // Create power-up stats with Egyptian styling
-  // Bombs
+  // Create bombs stat
   const bombStat = createStatRow('Bombs', powerups.bombs, `${playerId}-bombs`);
-  statsContainer.appendChild(bombStat);
   
-  // Flames
-  const flameStat = createStatRow('Flames', powerups.flames, `${playerId}-flames`);
-  // Add heart icon for flames
-  const heartIcon = document.createElement('span');
-  heartIcon.innerHTML = '❤️';
-  heartIcon.style.marginLeft = '5px';
-  heartIcon.style.fontSize = '14px';
-  flameStat.querySelector('.stat-label')?.appendChild(heartIcon);
-  statsContainer.appendChild(flameStat);
+  // Create flames stat with heart icon
+  const flamesLabelVNode = h('span', {
+    class: 'stat-label',
+    style: `
+      color: #5D4037;
+      font-weight: bold;
+      font-size: 16px;
+      text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.2);
+    `
+  }, ['Flames ', h('span', { style: 'margin-left: 5px; font-size: 14px;' }, ['❤️'])]);
   
-  // Speed
+  const flamesValueVNode = h('span', {
+    class: 'powerup-value',
+    id: `${playerId}-flames`,
+    style: `
+      font-weight: bold;
+      background-color: #d4af37;
+      color: #5D4037;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      font-size: 16px;
+    `
+  }, [powerups.flames.toString()]);
+  
+  const flameStatVNode = h('div', {
+    class: 'powerup-stat',
+    style: `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      background-color: rgba(245, 222, 179, 0.5);
+      border-radius: 6px;
+      border-left: 4px solid #d4af37;
+    `
+  }, [flamesLabelVNode, flamesValueVNode]);
+  
+  const flameStat = render(flameStatVNode) as HTMLElement;
+  
+  // Create speed stat
   const speedStat = createStatRow('Speed', powerups.speed, `${playerId}-speed`);
-  statsContainer.appendChild(speedStat);
   
-  // Lives
+  // Create lives stat
   const livesStat = createStatRow('Lives', powerups.lives, `${playerId}-lives`);
-  statsContainer.appendChild(livesStat);
   
-  playerDiv.appendChild(statsContainer);
+  // Create the stats directly as virtual nodes instead of rendering them first
+  // Create bombs stat
+  const bombStatVNode = createStatRowVNode('Bombs', powerups.bombs, `${playerId}-bombs`);
   
-  return playerDiv;
+  // Speed stat
+  const speedStatVNode = createStatRowVNode('Speed', powerups.speed, `${playerId}-speed`);
+  
+  // Lives stat
+  const livesStatVNode = createStatRowVNode('Lives', powerups.lives, `${playerId}-lives`);
+  
+  // Create stats container using h function
+  const statsContainerVNode = h('div', {
+    style: `
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    `
+  }, [bombStatVNode, flameStatVNode, speedStatVNode, livesStatVNode]);
+  
+  // Create player div using h function
+  const playerDivVNode = h('div', {
+    class: 'player-powerups',
+    id: `player-powerups-${playerId}`,
+    style: `
+      background-color: rgba(210, 180, 140, 0.9);
+      border: 3px solid #d4af37;
+      border-radius: 10px;
+      padding: 15px;
+      color: #5D4037;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      min-width: 180px;
+      margin-bottom: 15px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+      background-image: linear-gradient(rgba(210, 180, 140, 0.9), rgba(245, 222, 179, 0.9));
+    `
+  }, [headerVNode, statsContainerVNode]);
+  
+  // Render the player div
+  return render(playerDivVNode) as HTMLElement;
 }
 
-// Helper function to create stat rows with Egyptian styling
+// Helper function to create stat row VNode (not rendered yet)
+function createStatRowVNode(label: string, value: number, id: string) {
+  // Create the stat value element using h function
+  const statValueVNode = h('span', {
+    class: 'powerup-value',
+    id: id,
+    style: `
+      font-weight: bold;
+      background-color: #d4af37;
+      color: #5D4037;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      font-size: 16px;
+    `
+  }, [value.toString()]);
+  
+  // Create the stat label element using h function
+  const statLabelVNode = h('span', {
+    class: 'stat-label',
+    style: `
+      color: #5D4037;
+      font-weight: bold;
+      font-size: 16px;
+      text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.2);
+    `
+  }, [label]);
+  
+  // Create the stat row element using h function
+  return h('div', {
+    class: 'powerup-stat',
+    style: `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      background-color: rgba(245, 222, 179, 0.5);
+      border-radius: 6px;
+      border-left: 4px solid #d4af37;
+    `
+  }, [statLabelVNode, statValueVNode]);
+}
+
+// Helper function to create stat rows with Egyptian styling (rendered version)
 function createStatRow(label: string, value: number, id: string): HTMLElement {
-  const statRow = document.createElement('div');
-  statRow.className = 'powerup-stat';
-  statRow.style.cssText = `
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 10px;
-    background-color: rgba(245, 222, 179, 0.5);
-    border-radius: 6px;
-    border-left: 4px solid #d4af37;
-  `;
-  
-  const statLabel = document.createElement('span');
-  statLabel.className = 'stat-label';
-  statLabel.textContent = label;
-  statLabel.style.cssText = `
-    color: #5D4037;
-    font-weight: bold;
-    font-size: 16px;
-    text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.2);
-  `;
-  statRow.appendChild(statLabel);
-  
-  const statValue = document.createElement('span');
-  statValue.className = 'powerup-value';
-  statValue.textContent = value.toString();
-  statValue.id = id;
-  statValue.style.cssText = `
-    font-weight: bold;
-    background-color: #d4af37;
-    color: #5D4037;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    font-size: 16px;
-  `;
-  statRow.appendChild(statValue);
-  
-  return statRow;
+  // Render the stat row element
+  return render(createStatRowVNode(label, value, id)) as HTMLElement;
 }
 
 // Reset all power-ups
@@ -645,40 +713,53 @@ function showGameOverMessage(playerId: string): void {
   hieroglyphics.innerHTML = '&#x1330C; &#x13171; &#x131CB; &#x133BC; &#x1337F; &#x1344F;';
   messageBox.appendChild(hieroglyphics);
   
-  // Create play again button with Egyptian theme
-  const playAgainButton = document.createElement('button');
-  playAgainButton.textContent = 'Play Again';
-  playAgainButton.style.backgroundColor = '#d4af37';
-  playAgainButton.style.color = '#000';
-  playAgainButton.style.border = 'none';
-  playAgainButton.style.padding = '12px 30px';
-  playAgainButton.style.fontSize = '18px';
-  playAgainButton.style.cursor = 'pointer';
-  playAgainButton.style.borderRadius = '5px';
-  playAgainButton.style.margin = '10px 0';
-  playAgainButton.style.transition = 'all 0.3s';
-  playAgainButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
-  playAgainButton.style.fontWeight = 'bold';
-  playAgainButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-  messageBox.appendChild(playAgainButton);
+  // Create back to menu button with Egyptian theme
+  const backToMenuButton = document.createElement('button');
+  backToMenuButton.textContent = 'Back to Menu';
+  backToMenuButton.style.backgroundColor = '#d4af37';
+  backToMenuButton.style.color = '#000';
+  backToMenuButton.style.border = 'none';
+  backToMenuButton.style.padding = '12px 30px';
+  backToMenuButton.style.fontSize = '18px';
+  backToMenuButton.style.cursor = 'pointer';
+  backToMenuButton.style.borderRadius = '5px';
+  backToMenuButton.style.margin = '10px 0';
+  backToMenuButton.style.transition = 'all 0.3s';
+  backToMenuButton.style.fontFamily = "'Papyrus', 'Copperplate', fantasy";
+  backToMenuButton.style.fontWeight = 'bold';
+  backToMenuButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+  messageBox.appendChild(backToMenuButton);
   
   // Button hover effects with Egyptian theme
-  playAgainButton.onmouseover = () => {
-    playAgainButton.style.backgroundColor = '#f5e7c1';
-    playAgainButton.style.transform = 'scale(1.05)';
+  backToMenuButton.onmouseover = () => {
+    backToMenuButton.style.backgroundColor = '#f5e7c1';
+    backToMenuButton.style.transform = 'scale(1.05)';
   };
-  playAgainButton.onmouseout = () => {
-    playAgainButton.style.backgroundColor = '#d4af37';
-    playAgainButton.style.transform = 'scale(1)';
+  backToMenuButton.onmouseout = () => {
+    backToMenuButton.style.backgroundColor = '#d4af37';
+    backToMenuButton.style.transform = 'scale(1)';
   };
   
-  // Add click event to restart button
-  playAgainButton.addEventListener('click', () => {
+  // Add click event to back to menu button
+  backToMenuButton.addEventListener('click', () => {
     // Remove overlay
     document.body.removeChild(overlay);
     
-    // Emit game reset event
-    eventBus.emit('game:reset', {});
+    // Clear any stored player ID to ensure a fresh start
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('playerNickname');
+    
+    // Disconnect from the server if connected
+    if (typeof isConnectedToServer === 'function' && isConnectedToServer()) {
+      const socket = typeof getSocket === 'function' ? getSocket() : null;
+      if (socket) {
+        socket.disconnect();
+      }
+    }
+    
+    // Redirect to the start page (nickname entry)
+    window.location.href = '/';
+    window.location.reload(); // Force a full page reload to clear any lingering state
   });
   
   // Add animations if not already added

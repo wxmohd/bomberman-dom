@@ -1,5 +1,6 @@
 // Powerpuff Girls theme UI components
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 
 // Character data
 const POWERPUFF_CHARACTERS = [
@@ -214,64 +215,62 @@ function addCharacterSelection(container: HTMLElement): void {
 
 // Create a character card
 function createCharacterCard(character: any): HTMLElement {
-  const card = document.createElement('div');
-  card.className = 'ppg-character-card';
-  card.dataset.characterId = character.id;
-  
-  // Set card border color to match character
-  card.style.borderColor = character.color;
-  
-  // Add character image
-  const image = document.createElement('img');
-  image.src = character.image;
-  image.alt = character.name;
-  image.className = 'ppg-character-image';
-  card.appendChild(image);
-  
-  // Add character name
-  const name = document.createElement('h3');
-  name.textContent = character.name;
-  name.className = 'ppg-character-name';
-  name.style.color = character.color;
-  card.appendChild(name);
-  
-  // Add character description
-  const description = document.createElement('p');
-  description.textContent = character.description;
-  description.className = 'ppg-character-description';
-  card.appendChild(description);
-  
-  // Add character abilities
-  const abilities = document.createElement('p');
-  abilities.textContent = `Special: ${character.abilities}`;
-  abilities.className = 'ppg-character-abilities';
-  card.appendChild(abilities);
-  
-  // Add select button
-  const selectButton = document.createElement('button');
-  selectButton.textContent = 'Select';
-  selectButton.className = 'ppg-select-button';
-  selectButton.style.backgroundColor = character.color;
-  card.appendChild(selectButton);
-  
-  // Add click event to select character
-  card.addEventListener('click', () => {
-    // Remove selected class from all cards
-    document.querySelectorAll('.ppg-character-card').forEach(el => {
-      el.classList.remove('selected');
-    });
+  // Create character card using the framework's h function
+  const cardVNode = h('div', {
+    class: 'ppg-character-card',
+    'data-character-id': character.id,
+    style: `border-color: ${character.color};`,
+    onclick: () => {
+      // Remove selected class from all cards
+      document.querySelectorAll('.ppg-character-card').forEach(el => {
+        el.classList.remove('selected');
+      });
+      
+      // Add selected class to this card
+      const cardElement = document.querySelector(`[data-character-id="${character.id}"]`);
+      if (cardElement) {
+        cardElement.classList.add('selected');
+      }
+      
+      // Store selected character in localStorage
+      localStorage.setItem('selectedCharacter', character.id);
+      
+      // Emit character selected event
+      eventBus.emit('character:selected', { character });
+    }
+  }, [
+    // Character image
+    h('img', {
+      src: character.image,
+      alt: character.name,
+      class: 'ppg-character-image'
+    }, []),
     
-    // Add selected class to this card
-    card.classList.add('selected');
+    // Character name
+    h('h3', {
+      class: 'ppg-character-name',
+      style: `color: ${character.color};`
+    }, [character.name]),
     
-    // Store selected character in localStorage
-    localStorage.setItem('selectedCharacter', character.id);
+    // Character description
+    h('p', {
+      class: 'ppg-character-description'
+    }, [character.description]),
     
-    // Emit character selected event
-    eventBus.emit('character:selected', { character });
-  });
+    // Character abilities
+    h('p', {
+      class: 'ppg-character-abilities'
+    }, [`Special: ${character.abilities}`]),
+    
+    // Select button
+    h('button', {
+      class: 'ppg-select-button',
+      style: `background-color: ${character.color};`
+    }, ['Select'])
+  ]);
   
-  return card;
+  // Render the character card
+  return render(cardVNode) as HTMLElement;
 }
 
 // Add character selection styles

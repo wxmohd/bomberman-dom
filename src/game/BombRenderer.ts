@@ -1,5 +1,5 @@
 // Bomb visual representation and rendering
-import { h, VNode } from '../../framework/dom';
+import { h, render, VNode } from '../../framework/dom';
 import { Bomb } from '../entities/bomb';
 import { eventBus } from '../../framework/events';
 
@@ -36,23 +36,26 @@ export class BombRenderer {
     
     // If the bomb element doesn't exist yet, create it
     if (!bombElement && !bomb.hasExploded()) {
-      // Create the bomb element directly instead of using VNode
-      const bombElement = document.createElement('div');
-      bombElement.id = bombId;
-      bombElement.className = 'bomb';
-      bombElement.style.left = `${bomb.x * 40}px`;
-      bombElement.style.top = `${bomb.y * 40}px`;
+      // Create the bomb element using the framework's h function
+      const bombVNode = h('div', {
+        id: bombId,
+        class: 'bomb',
+        style: `
+          left: ${bomb.x * 40}px;
+          top: ${bomb.y * 40}px;
+        `
+      }, [
+        // Create the timer element
+        h('div', {
+          class: 'bomb-timer'
+        }, [])
+      ]);
       
-      // Create the timer element
-      const timerElement = document.createElement('div');
-      timerElement.className = 'bomb-timer';
-      bombElement.appendChild(timerElement);
+      // Render the bomb element using the framework's render function
+      const renderedBomb = render(bombVNode) as HTMLElement;
       
       // Add to the container
-      this.gameContainer.appendChild(bombElement);
-      
-      // Add animation class
-      bombElement.classList.add('bomb-pulse');
+      this.gameContainer.appendChild(renderedBomb);
     }
     
     // Update bomb timer visualization if bomb still exists
@@ -120,19 +123,25 @@ export class BombRenderer {
       return;
     }
     
-    // Create a new explosion element directly
-    const explosionElement = document.createElement('div');
-    explosionElement.id = explosionId;
-    explosionElement.className = 'explosion';
-    explosionElement.style.left = `${x * 40}px`;
-    explosionElement.style.top = `${y * 40}px`;
+    // Create a new explosion element using the framework's h function
+    const explosionVNode = h('div', {
+      id: explosionId,
+      class: 'explosion',
+      style: `
+        left: ${x * 40}px;
+        top: ${y * 40}px;
+      `
+    }, []);
+    
+    // Render the explosion element using the framework's render function
+    const renderedExplosion = render(explosionVNode) as HTMLElement;
     
     // Add to the container
-    const addedElement = this.gameContainer.appendChild(explosionElement) as HTMLElement;
+    this.gameContainer.appendChild(renderedExplosion);
     
     // Add to tracking map with current timestamp
     this.explosionElements.set(explosionId, {
-      element: addedElement,
+      element: renderedExplosion,
       timestamp: Date.now()
     });
     
@@ -170,8 +179,9 @@ export class BombRenderer {
 
   // Add CSS styles for bombs and explosions
   public static addStyles(): void {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
+    // Create style element using the framework's h function
+    const styleVNode = h('style', {}, [
+      `
       .bomb {
         position: absolute;
         width: 30px;
@@ -228,8 +238,13 @@ export class BombRenderer {
           background-color: rgba(255, 0, 0, 0.5);
         }
       }
-    `;
+      `
+    ]);
     
-    document.head.appendChild(styleElement);
+    // Render the style element using the framework's render function
+    const renderedStyle = render(styleVNode) as HTMLElement;
+    
+    // Add to document head
+    document.head.appendChild(renderedStyle);
   }
 }

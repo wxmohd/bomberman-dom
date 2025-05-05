@@ -1,6 +1,7 @@
 // Player renderer - handles visual representation of players
 import { Player, Direction } from '../entities/player';
 import { eventBus } from '../../framework/events';
+import { h, render } from '../../framework/dom';
 
 interface PlayerElement {
   container: HTMLElement;
@@ -44,40 +45,43 @@ export class PlayerRenderer {
     const position = player.getPosition();
     const color = this.playerColors[colorIndex % this.playerColors.length];
     
-    // Create player container
-    const container = document.createElement('div');
-    container.className = 'player-container';
-    container.style.left = `${position.x * this.cellSize}px`;
-    container.style.top = `${position.y * this.cellSize}px`;
-    
-    // Create player sprite
-    const sprite = document.createElement('div');
-    sprite.className = 'player-sprite';
-    sprite.style.backgroundColor = color;
-    
-    // Create health bar
-    const healthBar = document.createElement('div');
-    healthBar.className = 'player-health';
-    
-    // Create health indicators
+    // Create health indicators using the framework's h function
+    const heartVNodes: any[] = [];
     for (let i = 0; i < player.getLives(); i++) {
-      const heart = document.createElement('div');
-      heart.className = 'player-heart';
-      healthBar.appendChild(heart);
+      heartVNodes.push(h('div', { class: 'player-heart' }, []));
     }
     
-    // Create name tag
-    const nameTag = document.createElement('div');
-    nameTag.className = 'player-name';
-    nameTag.textContent = player.nickname;
+    // Create health bar using the framework's h function
+    const healthBarVNode = h('div', { class: 'player-health' }, heartVNodes);
     
-    // Assemble player elements
-    container.appendChild(sprite);
-    container.appendChild(healthBar);
-    container.appendChild(nameTag);
+    // Create player sprite using the framework's h function
+    const spriteVNode = h('div', { 
+      class: 'player-sprite',
+      style: `background-color: ${color};`
+    }, []);
+    
+    // Create name tag using the framework's h function
+    const nameTagVNode = h('div', { class: 'player-name' }, [player.nickname]);
+    
+    // Create player container using the framework's h function
+    const containerVNode = h('div', {
+      class: 'player-container',
+      style: `
+        left: ${position.x * this.cellSize}px;
+        top: ${position.y * this.cellSize}px;
+      `
+    }, [spriteVNode, healthBarVNode, nameTagVNode]);
+    
+    // Render the player container
+    const container = render(containerVNode) as HTMLElement;
     
     // Add to game container
     this.gameContainer.appendChild(container);
+    
+    // Find the rendered elements
+    const sprite = container.querySelector('.player-sprite') as HTMLElement;
+    const healthBar = container.querySelector('.player-health') as HTMLElement;
+    const nameTag = container.querySelector('.player-name') as HTMLElement;
     
     // Store reference
     this.playerElements.set(player.id, {
@@ -161,8 +165,9 @@ export class PlayerRenderer {
 
   // Add CSS styles for player rendering
   private addStyles(): void {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
+    // Create style element using the framework's h function
+    const styleVNode = h('style', {}, [
+      `
       .player-container {
         position: absolute;
         width: ${this.cellSize}px;
@@ -238,8 +243,11 @@ export class PlayerRenderer {
         50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.5; }
         100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
       }
-    `;
+      `
+    ]);
     
+    // Render and add style to document head
+    const styleElement = render(styleVNode) as HTMLElement;
     document.head.appendChild(styleElement);
   }
 }

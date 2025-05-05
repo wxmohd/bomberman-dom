@@ -1,5 +1,6 @@
 // Direct player implementation with no dependencies
 import { TILE_SIZE } from './constants';
+import { h, render } from '../../framework/dom';
 
 // Add a player directly to the DOM
 export function addDirectPlayer(): void {
@@ -10,50 +11,58 @@ export function addDirectPlayer(): void {
     return;
   }
   
-  // Create player element
-  const player = document.createElement('div');
-  player.id = 'direct-player';
-  
   // Position at top-left corner
   const x = 1;
   const y = 1;
   
-  // Style the player
-  player.style.cssText = `
-    position: absolute;
-    left: ${x * TILE_SIZE}px;
-    top: ${y * TILE_SIZE}px;
-    width: ${TILE_SIZE}px;
-    height: ${TILE_SIZE}px;
-    background-color: #FF0000;
-    border-radius: 50%;
-    z-index: 9999;
-    box-shadow: 0 0 20px 10px rgba(255,0,0,0.8);
-    border: 3px solid white;
-    box-sizing: border-box;
-    animation: player-pulse 0.8s infinite alternate;
-    pointer-events: none;
-  `;
+  // Create player element using the framework's h function
+  const playerVNode = h('div', {
+    id: 'direct-player',
+    style: `
+      position: absolute;
+      left: ${x * TILE_SIZE}px;
+      top: ${y * TILE_SIZE}px;
+      width: ${TILE_SIZE}px;
+      height: ${TILE_SIZE}px;
+      background-color: #FF0000;
+      border-radius: 50%;
+      z-index: 9999;
+      box-shadow: 0 0 20px 10px rgba(255,0,0,0.8);
+      border: 3px solid white;
+      box-sizing: border-box;
+      animation: player-pulse 0.8s infinite alternate;
+      pointer-events: none;
+    `
+  }, []);
   
-  // Add player to the DOM
-  app.appendChild(player);
+  // Render and add player to the DOM
+  const playerElement = render(playerVNode) as HTMLElement;
+  app.appendChild(playerElement);
   
   console.log('Added direct player to the DOM at', x, y);
   
-  // Add CSS animation
-  const style = document.createElement('style');
-  style.textContent = `
+  // Add CSS animation using the framework's h function
+  const styleVNode = h('style', {}, [
+    `
     @keyframes player-pulse {
       0% { transform: scale(1); }
       100% { transform: scale(1.2); }
     }
-  `;
-  document.head.appendChild(style);
+    `
+  ]);
+  
+  // Render and add style to the document head
+  const styleElement = render(styleVNode) as HTMLElement;
+  document.head.appendChild(styleElement);
   
   // Set up keyboard controls
   window.addEventListener('keydown', (event) => {
-    const currentLeft = parseInt(player.style.left) || x * TILE_SIZE;
-    const currentTop = parseInt(player.style.top) || y * TILE_SIZE;
+    // Get the current player element
+    const playerElement = document.getElementById('direct-player');
+    if (!playerElement) return;
+    
+    const currentLeft = parseInt(playerElement.style.left) || x * TILE_SIZE;
+    const currentTop = parseInt(playerElement.style.top) || y * TILE_SIZE;
     
     let newLeft = currentLeft;
     let newTop = currentTop;
@@ -78,8 +87,8 @@ export function addDirectPlayer(): void {
         break;
     }
     
-    player.style.left = `${newLeft}px`;
-    player.style.top = `${newTop}px`;
+    playerElement.style.left = `${newLeft}px`;
+    playerElement.style.top = `${newTop}px`;
   });
   
   // Place a bomb
