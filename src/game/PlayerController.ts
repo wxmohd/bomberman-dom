@@ -224,18 +224,51 @@ export class PlayerController {
     
     // Check grid boundaries
     if (gridX < 0 || gridX >= this.gridSize || gridY < 0 || gridY >= this.gridSize) {
+      console.log(`Collision with boundary at (${gridX}, ${gridY})`);
       return true; // Collision with boundary
     }
     
+    // Make sure we have a valid collision map
+    if (!this.collisionMap || !this.collisionMap[gridY] || this.collisionMap[gridY][gridX] === undefined) {
+      console.log(`Invalid collision map at (${gridX}, ${gridY})`);
+      return false; // Default to no collision if map is invalid
+    }
+    
     // Check collision map
-    return this.collisionMap[gridY][gridX];
+    const hasCollision = this.collisionMap[gridY][gridX];
+    if (hasCollision) {
+      console.log(`Collision detected at (${gridX}, ${gridY})`);
+    }
+    return hasCollision;
   }
 
   // Reset collision map
   private resetCollisionMap(): void {
-    this.collisionMap = Array(this.gridSize).fill(false).map(() => 
-      Array(this.gridSize).fill(false)
-    );
+    // Create a new collision map with all cells set to false (no collision)
+    this.collisionMap = [];
+    for (let y = 0; y < this.gridSize; y++) {
+      this.collisionMap[y] = [];
+      for (let x = 0; x < this.gridSize; x++) {
+        this.collisionMap[y][x] = false;
+      }
+    }
+    
+    // Set fixed walls at even coordinates (classic Bomberman pattern)
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        // Fixed walls at even coordinates
+        if (x % 2 === 0 && y % 2 === 0) {
+          this.collisionMap[y][x] = true;
+        }
+        
+        // Border walls
+        if (x === 0 || y === 0) {
+          this.collisionMap[y][x] = true;
+        }
+      }
+    }
+    
+    console.log('Collision map reset and initialized with fixed walls');
   }
 
   // Update collision map from grid data

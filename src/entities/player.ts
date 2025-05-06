@@ -41,8 +41,18 @@ export class Player {
   private x: number = 0;
   private y: number = 0;
   private direction: Direction = Direction.NONE;
+  private lastPressedDirection: Direction = Direction.NONE;
   private moving: boolean = false;
-  private speed: number = 3; // Grid cells per second
+  private speed: number = 2.0; // Base speed - moderate pace that can be increased with power-ups
+  
+  // Smooth movement properties
+  private targetX: number = 0;
+  private targetY: number = 0;
+  private isMovingToTarget: boolean = false;
+  private movementProgress: number = 0;
+  private movementDuration: number = 0;
+  private lastX: number = 0;
+  private lastY: number = 0;
   
   // Player state
   private lives: number = 3;
@@ -85,6 +95,15 @@ export class Player {
     }
     this.x = startX;
     this.y = startY;
+    
+    // Initialize smooth movement properties
+    this.targetX = startX;
+    this.targetY = startY;
+    this.lastX = startX;
+    this.lastY = startY;
+    
+    // Set base speed for smooth movement that can be increased with power-ups
+    this.speed = 2.0; // Moderate base speed
     
     // Store container reference if provided
     if (container) {
@@ -185,7 +204,7 @@ export class Player {
     // Create name tag content
     const nameTagText = this.isLocalPlayer() ? `${this.nickname} (You)` : `${this.nickname} (P${this.playerNumber})`;
     
-    // Create player element using the framework's h function
+    // Create name tag element using the framework's h function
     const nameTagVNode = h('div', {
       style: `
         position: absolute;
@@ -201,13 +220,14 @@ export class Player {
       `
     }, [nameTagText]);
     
+    // Create player element with hardware-accelerated transforms for smoother movement
     const playerVNode = h('div', {
       class: 'player',
       id: `player-${this.id}`,
       style: `
         position: absolute;
-        left: ${this.x * TILE_SIZE}px;
-        top: ${this.y * TILE_SIZE}px;
+        left: 0;
+        top: 0;
         width: ${TILE_SIZE}px;
         height: ${TILE_SIZE}px;
         background-image: url(${playerImage});
@@ -217,9 +237,52 @@ export class Player {
         background-color: transparent;
         z-index: 1000;
         box-sizing: border-box;
-        transition: left 0.1s, top 0.1s;
+        transform: translate3d(${this.x * TILE_SIZE}px, ${this.y * TILE_SIZE}px, 0);
+        will-change: transform;
       `
     }, [nameTagVNode]);
+    
+    // Add a style element for player animations
+    if (!document.getElementById('player-animations')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'player-animations';
+      styleElement.textContent = `
+        .player {
+          image-rendering: pixelated; /* Ensure crisp pixel art */
+          transition: none; /* No CSS transitions for precise control */
+        }
+        
+        /* Walking animation */
+        @keyframes player-walk {
+          0% { background-position-y: 0; }
+          50% { background-position-y: 2px; }
+          100% { background-position-y: 0; }
+        }
+        
+        /* Apply walking animation when moving */
+        .player.walking {
+          animation: player-walk 0.25s infinite;
+        }
+        
+        /* Direction-specific styles */
+        .player.facing-up {
+          /* Apply any direction-specific styles here */
+        }
+        
+        .player.facing-right {
+          /* Apply any direction-specific styles here */
+        }
+        
+        .player.facing-down {
+          /* Apply any direction-specific styles here */
+        }
+        
+        .player.facing-left {
+          /* Apply any direction-specific styles here */
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
     
     // Render the player element using the framework's render function
     const renderedPlayer = render(playerVNode) as HTMLElement;
@@ -250,17 +313,92 @@ export class Player {
         }
       }
     }, 500);
-    
-    // No animations for player characters to keep the original images clean
   }
   
   // Update the visual position of the player
   private updateVisualPosition(): void {
     if (this.playerElement) {
-      // For player movement, we'll use direct style updates for performance
-      // This is a common optimization even in frameworks
-      this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
-      this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
+      // Classic Bomberman: update player sprite based on direction
+      if (this.direction !== Direction.NONE) {
+        // Remove all direction classes first
+        this.playerElement.classList.remove('facing-up', 'facing-right', 'facing-down', 'facing-left');
+        
+        // Add the appropriate direction class
+        switch (this.direction) {
+          case Direction.UP:
+            this.playerElement.classList.add('facing-up');
+            break;
+          case Direction.RIGHT:
+            this.playerElement.classList.add('facing-right');
+            break;
+          case Direction.DOWN:
+            this.playerElement.classList.add('facing-down');
+            break;
+          case Direction.LEFT:
+            this.playerElement.classList.add('facing-left');
+            break;
+        }
+      }
+      
+      if (this.isMovingToTarget) {
+        // Use a perfectly linear movement for maximum smoothness
+        // This creates the smoothest possible movement with no acceleration or deceleration
+        
+        // Linear progress ensures perfectly smooth movement at constant speed
+        // This eliminates any perception of jerky movement
+        const progress = this.movementProgress;
+        
+        // Linear interpolation between start and target positions
+        const interpolatedX = this.lastX + (this.targetX - this.lastX) * progress;
+        const interpolatedY = this.lastY + (this.targetY - this.lastY) * progress;
+        
+        // Use transform with will-change for maximum hardware acceleration
+        if (!this.playerElement.style.willChange) {
+          this.playerElement.style.willChange = 'transform';
+        }
+        
+        this.playerElement.style.transform = `translate3d(${interpolatedX * TILE_SIZE}px, ${interpolatedY * TILE_SIZE}px, 0)`;
+        
+        // Only update logical position when movement is complete
+        if (this.movementProgress >= 1) {
+          this.x = this.targetX;
+          this.y = this.targetY;
+        }
+        
+        // Add walking animation class if moving
+        if (!this.playerElement.classList.contains('walking')) {
+          this.playerElement.classList.add('walking');
+        }
+      } else {
+        // When not in smooth movement, just set the position directly
+        this.playerElement.style.transform = `translate3d(${this.x * TILE_SIZE}px, ${this.y * TILE_SIZE}px, 0)`;
+        
+        // Remove walking animation when stopped
+        this.playerElement.classList.remove('walking');
+      }
+      
+      // Update player direction based on movement
+      // This ensures the player character faces the right way
+      if (this.direction !== Direction.NONE) {
+        // Remove all direction classes first
+        this.playerElement.classList.remove('facing-up', 'facing-right', 'facing-down', 'facing-left');
+        
+        // Add the appropriate direction class
+        switch (this.direction) {
+          case Direction.UP:
+            this.playerElement.classList.add('facing-up');
+            break;
+          case Direction.RIGHT:
+            this.playerElement.classList.add('facing-right');
+            break;
+          case Direction.DOWN:
+            this.playerElement.classList.add('facing-down');
+            break;
+          case Direction.LEFT:
+            this.playerElement.classList.add('facing-left');
+            break;
+        }
+      }
     }
   }
   
@@ -282,45 +420,108 @@ export class Player {
       return;
     }
     
-    if (direction === Direction.NONE) {
+    // Update direction even if we're not moving
+    if (direction !== Direction.NONE) {
+      this.direction = direction;
+      this.moving = true;
+    } else {
       this.moving = false;
       return;
     }
     
-    this.direction = direction;
-    this.moving = true;
+    // If we're already moving to a target, update the movement progress
+    if (this.isMovingToTarget) {
+      // Calculate progress increment based on elapsed time and duration
+      // This ensures consistent speed regardless of frame rate
+      const progressIncrement = deltaTime / 1000 / this.movementDuration;
+      
+      // Update movement progress
+      this.movementProgress += progressIncrement;
+      
+      // If we've reached or exceeded the target, complete the movement
+      if (this.movementProgress >= 1) {
+        this.x = this.targetX;
+        this.y = this.targetY;
+        this.isMovingToTarget = false;
+        
+        // Check for power-ups at the new position
+        if (this.isLocalPlayer()) {
+          this.checkForVisiblePowerUp();
+        }
+        
+        // Emit position update event
+        this.emitPositionUpdate();
+        
+        // If the player is still pressing the same direction key,
+        // immediately start moving in that direction again
+        if (this.moving && this.direction === direction) {
+          this.startMovement(direction);
+        }
+      }
+      
+      // Update visual position during movement
+      this.updateVisualPosition();
+      return;
+    }
     
-    // Calculate new position based on direction and speed
-    let newX = this.x;
-    let newY = this.y;
-    const distance = this.speed * (deltaTime / 1000); // Convert to seconds
+    // If we're not already moving, calculate the target position
+    // We want to move to the next grid cell in the direction of movement
+    let targetX = Math.round(this.x);
+    let targetY = Math.round(this.y);
     
+    // Determine the target grid cell based on direction
     switch (direction) {
       case Direction.UP:
-        newY -= distance;
+        targetY -= 1;
         break;
       case Direction.RIGHT:
-        newX += distance;
+        targetX += 1;
         break;
       case Direction.DOWN:
-        newY += distance;
+        targetY += 1;
         break;
       case Direction.LEFT:
-        newX -= distance;
+        targetX -= 1;
         break;
     }
     
-    // Check collision at new position
-    if (!collisionCallback(newX, newY)) {
-      // No collision, update position
-      this.x = newX;
-      this.y = newY;
+    // Check if the target position is valid using both our internal check and the callback
+    const internalValid = this.isValidPosition(targetX, targetY);
+    const externalValid = !collisionCallback(targetX, targetY);
+    
+    if (internalValid && externalValid) {
+      // Start movement to the target position
+      this.lastX = this.x;
+      this.lastY = this.y;
+      this.targetX = targetX;
+      this.targetY = targetY;
+      this.isMovingToTarget = true;
+      this.movementProgress = 0;
       
-      // Update visual position
+      // Fixed base duration for consistent movement
+      const baseDuration = 0.18; // 180ms per grid cell
+      
+      // Apply speed modifier
+      this.movementDuration = baseDuration / (this.speed / 2.0);
+      
+      // Ensure movement duration stays within reasonable bounds
+      if (this.movementDuration < 0.1) {
+        this.movementDuration = 0.1; // Minimum duration for smooth movement
+      } else if (this.movementDuration > 0.25) {
+        this.movementDuration = 0.25; // Maximum duration
+      }
+      
+      // Update visual position immediately to start animation
       this.updateVisualPosition();
       
-      // Emit position update event
-      this.emitPositionUpdate();
+      // Send position to server for multiplayer sync
+      if (this.isLocalPlayer()) {
+        sendToServer(EVENTS.MOVE, {
+          x: this.targetX,
+          y: this.targetY,
+          direction: this.direction
+        });
+      }
     }
   }
   
@@ -339,89 +540,264 @@ export class Player {
   
   // Set up keyboard controls for the local player
   private setupKeyboardControls(): void {
-    console.log(`Setting up keyboard controls for player ${this.id} (isLocalPlayer: ${this.isLocalPlayer()})`);
+    console.log('Setting up keyboard controls directly in Player class');
     
-    // Only set up controls for the local player
-    if (!this.isLocalPlayer()) {
-      console.log(`Not setting up keyboard controls for remote player ${this.id}`);
-      return;
-    }
-    
-    const handleKeyDown = (event: KeyboardEvent) => {
-      console.log(`Key pressed: ${event.key} for player ${this.id}`);
-      
-      // Skip if player is not in the game
-      if (!this.playerElement) {
-        console.log('Player element not found, skipping keyboard input');
-        return;
-      }
-      
-      // Skip if game is paused or game is over
-      if (isGamePaused || isGameOver) {
-        console.log('Game is paused or over, ignoring keyboard input');
-        return;
-      }
-      
-      let newX = this.x;
-      let newY = this.y;
-      const speed = 1; // Full tile movement for better grid alignment
-      
-      switch (event.key) {
-        case 'ArrowUp':
-          newY -= speed;
-          this.direction = Direction.UP;
-          break;
-        case 'ArrowRight':
-          newX += speed;
-          this.direction = Direction.RIGHT;
-          break;
-        case 'ArrowDown':
-          newY += speed;
-          this.direction = Direction.DOWN;
-          break;
-        case 'ArrowLeft':
-          newX -= speed;
-          this.direction = Direction.LEFT;
-          break;
-        case ' ': // Spacebar
-          this.placeBomb();
-          return; // Skip movement for bomb placement
-        default:
-          return; // Skip for other keys
-      }
-      
-      console.log(`Attempting to move from (${this.x},${this.y}) to (${newX},${newY})`);
-      
-      // Check if the new position is valid
-      if (this.isValidPosition(newX, newY)) {
-        this.x = newX;
-        this.y = newY;
-        this.updateVisualPosition();
-        this.emitPositionUpdate();
-        console.log(`Moved to (${this.x},${this.y})`);
-        
-        // Only check for power-ups if we're the local player to avoid duplicate collection
-        if (this.isLocalPlayer()) {
-          // Instead of automatically collecting, check if there's a visible power-up and collect it manually
-          this.checkForVisiblePowerUp();
-        }
-      } else {
-        console.log(`Invalid position: (${newX},${newY})`);
-      }
-      
-      // Send position to server for multiplayer sync
-      sendToServer(EVENTS.MOVE, {
-        x: this.x,
-        y: this.y,
-        direction: this.direction
-      });
+    // Define key mappings
+    const keyMap = {
+      up: ['ArrowUp', 'w', 'W'],
+      right: ['ArrowRight', 'd', 'D'],
+      down: ['ArrowDown', 's', 'S'],
+      left: ['ArrowLeft', 'a', 'A'],
+      bomb: [' '] // Space bar
     };
     
-    // Add event listener for keydown
-    document.addEventListener('keydown', handleKeyDown);
+    // Track key states
+    const keyState = {
+      up: false,
+      right: false,
+      down: false,
+      left: false,
+      bomb: false
+    };
     
-    // Log that keyboard controls are set up
-    console.log(`Keyboard controls set up for player ${this.id}`);
+    // Handle keydown events
+    window.addEventListener('keydown', (event) => {
+      // Only process for local player
+      if (!this.isLocalPlayer()) return;
+      
+      // Check each control type
+      Object.entries(keyMap).forEach(([control, keys]) => {
+        if (keys.includes(event.key)) {
+          keyState[control as keyof typeof keyState] = true;
+          
+          // If this is a bomb key, place a bomb
+          if (control === 'bomb') {
+            this.placeBomb();
+          }
+        }
+      });
+    });
+    
+    // Handle keyup events
+    window.addEventListener('keyup', (event) => {
+      // Only process for local player
+      if (!this.isLocalPlayer()) return;
+      
+      // Check each control type
+      Object.entries(keyMap).forEach(([control, keys]) => {
+        if (keys.includes(event.key)) {
+          keyState[control as keyof typeof keyState] = false;
+        }
+      });
+    });
+    
+    // Set up movement update loop with timestamp for consistent timing
+    let lastFrameTime = performance.now();
+    let smoothDeltaTime = 16.67; // Start with 60fps equivalent
+    
+    const updateMovement = (currentTime: number) => {
+      // Calculate actual delta time between frames for consistent movement
+      const rawDeltaTime = currentTime - lastFrameTime;
+      lastFrameTime = currentTime;
+      
+      // Apply stronger smoothing to delta time to ensure extremely smooth movement
+      // This prevents any jerkiness even on significant frame drops
+      smoothDeltaTime = smoothDeltaTime * 0.9 + rawDeltaTime * 0.1;
+      
+      // Only process for local player and if the player element exists
+      if (!this.isLocalPlayer() || !this.playerElement) {
+        requestAnimationFrame(updateMovement);
+        return;
+      }
+      
+      // Determine movement direction - classic Bomberman prioritizes the last pressed key
+      // This creates the authentic Bomberman control feel
+      let direction = Direction.NONE;
+      
+      // Track the last pressed key for direction priority
+      if (keyState.up) {
+        direction = Direction.UP;
+        this.lastPressedDirection = Direction.UP;
+      }
+      if (keyState.right) {
+        direction = Direction.RIGHT;
+        this.lastPressedDirection = Direction.RIGHT;
+      }
+      if (keyState.down) {
+        direction = Direction.DOWN;
+        this.lastPressedDirection = Direction.DOWN;
+      }
+      if (keyState.left) {
+        direction = Direction.LEFT;
+        this.lastPressedDirection = Direction.LEFT;
+      }
+      
+      // If no key is currently pressed but we were moving, stop gradually
+      if (direction === Direction.NONE && this.moving) {
+        this.moving = false;
+      }
+      
+      // If we have a direction, try to move
+      if (direction !== Direction.NONE) {
+        // Calculate target position
+        let targetX = Math.round(this.x);
+        let targetY = Math.round(this.y);
+        
+        switch (direction) {
+          case Direction.UP:
+            targetY -= 1;
+            break;
+          case Direction.RIGHT:
+            targetX += 1;
+            break;
+          case Direction.DOWN:
+            targetY += 1;
+            break;
+          case Direction.LEFT:
+            targetX -= 1;
+            break;
+        }
+        
+        // Check if the target position is valid
+        if (this.isValidPosition(targetX, targetY)) {
+          // Only start new movement if we're not already moving
+          // This prevents interrupting current movement and ensures smooth continuous motion
+          if (!this.isMovingToTarget) {
+            // Complete any current movement
+            if (this.isMovingToTarget) {
+              this.x = this.targetX;
+              this.y = this.targetY;
+            }
+            
+            // Start new movement
+            this.direction = direction;
+            this.moving = true;
+            this.lastX = this.x;
+            this.lastY = this.y;
+            this.targetX = targetX;
+            this.targetY = targetY;
+            this.isMovingToTarget = true;
+            this.movementProgress = 0;
+            
+            // Faster duration while maintaining smooth control
+            const baseDuration = 0.25; // 250ms per grid cell - faster but still smooth movement
+            
+            // Factor in speed for power-up benefits
+            this.movementDuration = baseDuration / (this.speed / 2.0);
+            
+            // Ensure duration stays within reasonable bounds
+            if (this.movementDuration < 0.2) this.movementDuration = 0.2; // Minimum duration
+            if (this.movementDuration > 0.3) this.movementDuration = 0.3; // Maximum duration
+            
+            // Send position to server for multiplayer sync
+            if (this.isLocalPlayer()) {
+              sendToServer(EVENTS.MOVE, {
+                x: this.targetX,
+                y: this.targetY,
+                direction: this.direction
+              });
+            }
+          }
+        }
+      }
+      
+      // Update movement progress if we're moving
+      if (this.isMovingToTarget) {
+        // Calculate progress increment based on smoothed delta time
+        // This ensures ultra-consistent speed regardless of frame rate
+        const progressIncrement = smoothDeltaTime / 1000 / this.movementDuration;
+        
+        // Update movement progress
+        this.movementProgress += progressIncrement;
+        
+        // If we've reached or exceeded the target, complete the movement
+        if (this.movementProgress >= 1) {
+          this.x = this.targetX;
+          this.y = this.targetY;
+          this.isMovingToTarget = false;
+          
+          // Check for power-ups at the new position
+          this.checkForVisiblePowerUp();
+          
+          // Emit position update event
+          this.emitPositionUpdate();
+          
+          // Classic Bomberman behavior: check for direction changes or continued movement
+          // This ensures smooth transitions between movements with no gaps
+          
+          // First, determine the current active direction from key states
+          let activeDirection = Direction.NONE;
+          if (keyState.up) activeDirection = Direction.UP;
+          else if (keyState.right) activeDirection = Direction.RIGHT;
+          else if (keyState.down) activeDirection = Direction.DOWN;
+          else if (keyState.left) activeDirection = Direction.LEFT;
+          
+          // If a key is still pressed, continue movement in that direction
+          if (activeDirection !== Direction.NONE) {
+            // If direction changed, update it
+            if (activeDirection !== direction) {
+              this.direction = activeDirection;
+              direction = activeDirection;
+            }
+            
+            // Calculate next target position
+            let nextTargetX = this.x;
+            let nextTargetY = this.y;
+            
+            switch (direction) {
+              case Direction.UP:
+                nextTargetY -= 1;
+                break;
+              case Direction.RIGHT:
+                nextTargetX += 1;
+                break;
+              case Direction.DOWN:
+                nextTargetY += 1;
+                break;
+              case Direction.LEFT:
+                nextTargetX -= 1;
+                break;
+            }
+            
+            // Check if next position is valid
+            if (this.isValidPosition(nextTargetX, nextTargetY)) {
+              // Start new movement immediately with no delay
+              this.lastX = this.x;
+              this.lastY = this.y;
+              this.targetX = nextTargetX;
+              this.targetY = nextTargetY;
+              this.isMovingToTarget = true;
+              this.movementProgress = 0;
+              
+              // Send position to server for multiplayer sync
+              if (this.isLocalPlayer()) {
+                sendToServer(EVENTS.MOVE, {
+                  x: this.targetX,
+                  y: this.targetY,
+                  direction: this.direction
+                });
+              }
+            } else {
+              // If we can't move in the current direction, stop moving
+              // This is classic Bomberman behavior - stop at walls
+              this.moving = false;
+            }
+          } else {
+            // No keys pressed, stop moving
+            this.moving = false;
+          }
+        }
+      }
+      
+      // Update visual position
+      this.updateVisualPosition();
+      
+      // Continue the loop
+      requestAnimationFrame(updateMovement);
+    };
+    
+    // Start the movement loop with current timestamp
+    requestAnimationFrame(updateMovement);
   }
   
   // Check if a position is valid for movement
@@ -894,23 +1270,120 @@ export class Player {
     this.direction = Direction.NONE;
   }
   
+  // Start movement in a specific direction
+  private startMovement(direction: Direction): void {
+    // Skip if invalid direction
+    if (direction === Direction.NONE) return;
+    
+    // Set direction even if already moving (allows for direction changes)
+    this.direction = direction;
+    this.moving = true;
+    
+    // If already moving to a target, allow changing direction only if we're close to completing the current movement
+    if (this.isMovingToTarget) {
+      // Allow direction changes when we're at least 70% of the way to the target
+      // This makes the controls feel more responsive while maintaining grid alignment
+      if (this.movementProgress < 0.7) {
+        return;
+      }
+      
+      // Complete the current movement first
+      this.x = this.targetX;
+      this.y = this.targetY;
+      this.isMovingToTarget = false;
+    }
+    
+    // Calculate target position based on direction
+    // Always start from a rounded position to ensure grid alignment
+    let targetX = Math.round(this.x);
+    let targetY = Math.round(this.y);
+    
+    switch (direction) {
+      case Direction.UP:
+        targetY -= 1;
+        break;
+      case Direction.RIGHT:
+        targetX += 1;
+        break;
+      case Direction.DOWN:
+        targetY += 1;
+        break;
+      case Direction.LEFT:
+        targetX -= 1;
+        break;
+    }
+    
+    // Check if the target position is valid
+    if (this.isValidPosition(targetX, targetY)) {
+      // Start smooth movement to target
+      this.lastX = this.x;
+      this.lastY = this.y;
+      this.targetX = targetX;
+      this.targetY = targetY;
+      this.isMovingToTarget = true;
+      this.movementProgress = 0;
+      
+      // Classic Bomberman uses a consistent movement speed
+      // Fixed base duration creates the authentic feel
+      const baseDuration = 0.18; // 180ms per grid cell - authentic to classic Bomberman
+      
+      // Apply speed modifier (higher speed = faster movement)
+      // The base speed of 2.0 gives the standard movement rate
+      this.movementDuration = baseDuration / (this.speed / 2.0);
+      
+      // Ensure movement duration stays within reasonable bounds
+      if (this.movementDuration < 0.1) {
+        this.movementDuration = 0.1; // Minimum duration for smooth movement
+      } else if (this.movementDuration > 0.25) {
+        this.movementDuration = 0.25; // Maximum duration to prevent extremely slow movement
+      }
+      
+      // Update visual position immediately to start animation
+      this.updateVisualPosition();
+      
+      // Send position to server for multiplayer sync
+      if (this.isLocalPlayer()) {
+        sendToServer(EVENTS.MOVE, {
+          x: this.targetX,
+          y: this.targetY,
+          direction: this.direction
+        });
+      }
+    }
+  }
+
+  
   // Place a bomb at the player's current position
   public placeBomb(): void {
-    // Skip if player is not in the game
-    if (!this.playerElement || !this.gameContainer) return;
+    // Don't allow bomb placement if game is paused or over
+    if (isGamePaused || isGameOver) {
+      return;
+    }
     
-    // Skip if game is paused
-    if (isGamePaused) return;
+    // Skip if player is not in the game or game container is not available
+    if (!this.playerElement || !this.gameContainer) {
+      console.log('Cannot place bomb: player element or game container missing');
+      return;
+    }
     
-    // Check bomb cooldown
-    if (this.bombCooldown) return;
+    // Don't allow bomb placement if on cooldown
+    if (this.bombCooldown) {
+      console.log('Bomb on cooldown');
+      return;
+    }
     
-    // Check if player has reached bomb capacity
-    if (this.activeBombs >= this.bombCapacity) return;
+    // Don't allow placing more bombs than capacity
+    if (this.activeBombs >= this.bombCapacity) {
+      console.log(`Can't place more bombs. Active: ${this.activeBombs}, Capacity: ${this.bombCapacity}`);
+      return;
+    }
     
-    // Get the exact player position
-    const gridX = Math.floor(this.x);
-    const gridY = Math.floor(this.y);
+    // Get grid coordinates for bomb placement
+    // Use rounded position to ensure bomb is placed on grid
+    const gridX = Math.round(this.x);
+    const gridY = Math.round(this.y);
+    
+    console.log(`Attempting to place bomb at (${gridX}, ${gridY})`);
     
     // Check if there's already a bomb at this position
     const existingBombs = document.querySelectorAll('.bomb');
@@ -920,7 +1393,8 @@ export class Player {
       const bombY = Math.floor(parseInt(bomb.style.top) / TILE_SIZE);
       
       if (bombX === gridX && bombY === gridY) {
-        return; // Don't place another bomb here
+        console.log('Bomb already exists at this position');
+        return; // Can't place a bomb where one already exists
       }
     }
     
@@ -950,6 +1424,7 @@ export class Player {
       transform: translateX(-50%);
       width: 4px;
       height: 10px;
+      background-color: red;
       z-index: 801;
     `;
     bomb.appendChild(fuse);
@@ -959,19 +1434,14 @@ export class Player {
     
     // Increment active bombs count
     this.activeBombs++;
+    console.log(`Placed bomb. Active bombs: ${this.activeBombs}`);
     
     // Set bomb cooldown
     this.bombCooldown = true;
     setTimeout(() => {
       this.bombCooldown = false;
+      console.log('Bomb cooldown ended');
     }, this.bombCooldownTime);
-    
-    // Send bomb placement to server
-    sendToServer(EVENTS.DROP_BOMB, {
-      x: gridX,
-      y: gridY,
-      explosionRange: this.explosionRange
-    });
     
     // Emit bomb placed event
     eventBus.emit('bomb:placed', {
@@ -981,6 +1451,13 @@ export class Player {
       range: this.explosionRange
     });
     
+    // Send bomb placement to server for multiplayer sync
+    sendToServer(EVENTS.DROP_BOMB, {
+      x: gridX,
+      y: gridY,
+      explosionRange: this.explosionRange
+    });
+    
     // Explode after 2 seconds
     setTimeout(() => {
       // Remove the bomb element
@@ -988,6 +1465,7 @@ export class Player {
       
       // Decrement active bombs count
       this.activeBombs--;
+      console.log(`Bomb exploded. Active bombs: ${this.activeBombs}`);
       
       // Create explosion
       this.createExplosion(gridX, gridY, this.explosionRange);
