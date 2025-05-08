@@ -364,23 +364,27 @@ export class Player {
       
       let newX = this.x;
       let newY = this.y;
-      const speed = 1; // Full tile movement for better grid alignment
+      
+      // Determine how many blocks to move based on speed power-up
+      // If speed is >= 3.5, move 2 blocks at once (base speed is 3, each speed power-up adds 0.5)
+      const blocksToMove = this.speed >= 3.5 ? 2 : 1;
+      console.log(`Moving ${blocksToMove} blocks with speed ${this.speed}`);
       
       switch (event.key) {
         case 'ArrowUp':
-          newY -= speed;
+          newY -= blocksToMove;
           this.direction = Direction.UP;
           break;
         case 'ArrowRight':
-          newX += speed;
+          newX += blocksToMove;
           this.direction = Direction.RIGHT;
           break;
         case 'ArrowDown':
-          newY += speed;
+          newY += blocksToMove;
           this.direction = Direction.DOWN;
           break;
         case 'ArrowLeft':
-          newX -= speed;
+          newX -= blocksToMove;
           this.direction = Direction.LEFT;
           break;
         case ' ': // Spacebar
@@ -392,21 +396,65 @@ export class Player {
       
       console.log(`Attempting to move from (${this.x},${this.y}) to (${newX},${newY})`);
       
-      // Check if the new position is valid
-      if (this.isValidPosition(newX, newY)) {
-        this.x = newX;
-        this.y = newY;
-        this.updateVisualPosition();
-        this.emitPositionUpdate();
-        console.log(`Moved to (${this.x},${this.y})`);
+      // For 2-block movement, we need to check both the intermediate and final positions
+      if (blocksToMove === 2) {
+        // Calculate the intermediate position (1 block away)
+        let intermediateX = this.x;
+        let intermediateY = this.y;
         
-        // Only check for power-ups if we're the local player to avoid duplicate collection
-        if (this.isLocalPlayer()) {
-          // Instead of automatically collecting, check if there's a visible power-up and collect it manually
-          this.checkForVisiblePowerUp();
+        switch (this.direction) {
+          case Direction.UP:
+            intermediateY = this.y - 1;
+            break;
+          case Direction.RIGHT:
+            intermediateX = this.x + 1;
+            break;
+          case Direction.DOWN:
+            intermediateY = this.y + 1;
+            break;
+          case Direction.LEFT:
+            intermediateX = this.x - 1;
+            break;
+        }
+        
+        // Check if both positions are valid
+        const intermediateValid = this.isValidPosition(intermediateX, intermediateY);
+        const finalValid = this.isValidPosition(newX, newY);
+        
+        if (intermediateValid && finalValid) {
+          // Both positions are valid, move to the final position
+          this.x = newX;
+          this.y = newY;
+          this.updateVisualPosition();
+          this.emitPositionUpdate();
+          console.log(`Moved 2 blocks to (${this.x},${this.y})`);
+        } else if (intermediateValid) {
+          // Only the intermediate position is valid, move there instead
+          this.x = intermediateX;
+          this.y = intermediateY;
+          this.updateVisualPosition();
+          this.emitPositionUpdate();
+          console.log(`Moved 1 block to (${this.x},${this.y}) because final position is blocked`);
+        } else {
+          console.log(`Invalid position: intermediate (${intermediateX},${intermediateY})`);
         }
       } else {
-        console.log(`Invalid position: (${newX},${newY})`);
+        // Regular 1-block movement
+        if (this.isValidPosition(newX, newY)) {
+          this.x = newX;
+          this.y = newY;
+          this.updateVisualPosition();
+          this.emitPositionUpdate();
+          console.log(`Moved to (${this.x},${this.y})`);
+        } else {
+          console.log(`Invalid position: (${newX},${newY})`);
+        }
+      }
+      
+      // Only check for power-ups if we're the local player to avoid duplicate collection
+      if (this.isLocalPlayer()) {
+        // Instead of automatically collecting, check if there's a visible power-up and collect it manually
+        this.checkForVisiblePowerUp();
       }
       
       // Send position to server for multiplayer sync
