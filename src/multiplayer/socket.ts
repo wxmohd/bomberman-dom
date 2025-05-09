@@ -167,6 +167,10 @@ function setupGameEventListeners(): void {
   // Player moved event
   socket.on(EVENTS.MOVE, (data) => {
     console.log('Received remote player movement:', data);
+    // Make sure the data includes a playerId
+    if (!data.playerId && data.id) {
+      data.playerId = data.id; // Use id as playerId if not provided
+    }
     eventBus.emit('remote:player:moved', data);
   });
 

@@ -44,6 +44,22 @@ export class Player {
   private moving: boolean = false;
   private speed: number = 3; // Grid cells per second
   
+  // Grid-based movement with visual smoothing
+  private gridX: number = 0;
+  private gridY: number = 0;
+  private targetX: number = 0;
+  private targetY: number = 0;
+  private movingToTarget: boolean = false;
+  private moveProgress: number = 0;
+  private lastSyncTime: number = 0;
+  private syncInterval: number = 100; // Sync position every 100ms
+  
+  // Classic Bomberman-style continuous movement system
+  private moveSpeed: number = 3; // Base speed in grid cells per second
+  private lastMoveTime: number = 0;
+  private nextMoveQueued: boolean = false; // Flag to indicate a move is queued up
+  private queuedDirection: Direction = Direction.NONE; // Direction of the queued move
+  
   // Player state
   private lives: number = 3;
   private invulnerable: boolean = false;
@@ -83,8 +99,13 @@ export class Player {
     if (playerNum) {
       this.playerNumber = playerNum;
     }
-    this.x = startX;
-    this.y = startY;
+    // Always use exact integer positions to prevent direction issues
+    this.gridX = Math.floor(startX);
+    this.gridY = Math.floor(startY);
+    this.x = this.gridX;
+    this.y = this.gridY;
+    this.targetX = this.gridX;
+    this.targetY = this.gridY;
     
     // Store container reference if provided
     if (container) {
@@ -123,10 +144,30 @@ export class Player {
       isGameOver = false;
     });
     
+    // Listen for remote player movement events (for non-local players)
+    if (!this.isLocalPlayer()) {
+      eventBus.on('remote:player:moved', (data) => {
+        // Only process movement for this player
+        if (data.playerId === this.id) {
+          this.handleRemoteMovement(data);
+        }
+      });
+    }
+    
     // Set up keyboard controls if this is the local player
     if (this.isLocalPlayer()) {
       this.setupKeyboardControls();
     }
+  }
+  
+  // Initialize player position
+  private initPosition(x: number, y: number): void {
+    // Always initialize to exact grid positions to prevent direction issues
+    this.x = Math.round(x);
+    this.y = Math.round(y);
+    this.gridX = Math.floor(this.x);
+    this.gridY = Math.floor(this.y);
+    this.updateVisualPosition();
   }
   
   // Get current position
@@ -136,14 +177,70 @@ export class Player {
   
   // Set position (for initialization or teleportation)
   public setPosition(x: number, y: number): void {
-    this.x = x;
-    this.y = y;
+    this.initPosition(x, y);
+    this.targetX = x;
+    this.targetY = y;
+    this.movingToTarget = false;
     
-    // Update visual position
     this.updateVisualPosition();
     
     // Emit position update event
     this.emitPositionUpdate();
+  }
+  
+  // Handle remote player movement from websocket
+  private handleRemoteMovement(data: any): void {
+    // Extract position data
+    const { x, y, direction, targetX, targetY } = data;
+    
+    // Skip if no valid position data
+    if (x === undefined || y === undefined) return;
+    
+    // Set direction if provided
+    if (direction !== undefined) {
+      this.direction = direction;
+    }
+    
+    // If we're already moving, complete the current movement first
+    if (this.movingToTarget) {
+      // If the target is the same as our current target, just update progress
+      if (targetX === this.targetX && targetY === this.targetY) {
+        // Continue with current movement
+        return;
+      }
+    }
+    
+    // Always use exact grid positions for remote players too
+    // This ensures consistent behavior between local and remote players
+    this.gridX = Math.floor(x);
+    this.gridY = Math.floor(y);
+    this.x = this.gridX;
+    this.y = this.gridY;
+    
+    // If target coordinates are provided, use them
+    if (targetX !== undefined && targetY !== undefined) {
+      // Start smooth movement to target
+      this.targetX = targetX;
+      this.targetY = targetY;
+      this.movingToTarget = true;
+      this.moveProgress = 0;
+      this.moving = true;
+    } else {
+      // Just update the position directly
+      this.updateVisualPosition();
+    }
+    
+    // Update the last move time
+    this.lastMoveTime = performance.now();
+  }
+  
+  // Update player speed (works for both local and remote players)
+  public updateSpeed(speed: number): void {
+    if (speed > 0) {
+      this.speed = speed;
+      // Update moveSpeed for animation smoothness
+      this.moveSpeed = this.speed;
+    }
   }
   
   // Remove the player's visual element from the DOM
@@ -275,7 +372,7 @@ export class Player {
     this.moving = direction !== Direction.NONE;
   }
   
-  // Move in a direction
+  // Move in a direction - classic Bomberman-style continuous movement
   public move(direction: Direction, deltaTime: number, collisionCallback: (x: number, y: number) => boolean): void {
     // Don't allow movement if game is paused
     if (isGamePaused) {
@@ -287,41 +384,206 @@ export class Player {
       return;
     }
     
+    // Always update the direction immediately
     this.direction = direction;
     this.moving = true;
     
-    // Calculate new position based on direction and speed
-    let newX = this.x;
-    let newY = this.y;
-    const distance = this.speed * (deltaTime / 1000); // Convert to seconds
+    // If we're not moving, make sure we're exactly on a grid cell
+    if (!this.movingToTarget && this.isLocalPlayer()) {
+      // Force exact grid alignment to prevent direction issues
+      this.x = this.gridX;
+      this.y = this.gridY;
+    }
     
-    switch (direction) {
+    // Store the current direction for the next move
+    if (this.isLocalPlayer()) {
+      this.queuedDirection = direction;
+      this.nextMoveQueued = true;
+    }
+    
+    // If we're already moving to a target, continue the movement
+    if (this.movingToTarget) {
+      // Calculate how much to move based on deltaTime and speed
+      const moveAmount = (this.speed * deltaTime) / 1000;
+      this.moveProgress += moveAmount;
+      
+      // When we're close to reaching the target, check if we should queue up the next move
+      if (this.moveProgress >= 0.8 && this.isLocalPlayer() && this.nextMoveQueued) {
+        // Calculate the next target position based on queued direction
+        let nextTargetX = this.targetX;
+        let nextTargetY = this.targetY;
+        
+        switch (this.queuedDirection) {
+          case Direction.UP: nextTargetY -= 1; break;
+          case Direction.RIGHT: nextTargetX += 1; break;
+          case Direction.DOWN: nextTargetY += 1; break;
+          case Direction.LEFT: nextTargetX -= 1; break;
+        }
+        
+        // Check if the next position is valid
+        if (this.isValidPosition(nextTargetX, nextTargetY)) {
+          // We'll automatically start moving to this position once we reach the current target
+          this.nextMoveQueued = true;
+        } else {
+          // Can't move in the queued direction
+          this.nextMoveQueued = false;
+        }
+      }
+      
+      // If we've reached the target position
+      if (this.moveProgress >= 1) {
+        // Snap to the target position
+        this.x = this.targetX;
+        this.y = this.targetY;
+        this.gridX = Math.floor(this.x);
+        this.gridY = Math.floor(this.y);
+        
+        // Check for powerups when reaching a new grid cell
+        if (this.isLocalPlayer()) {
+          this.checkForVisiblePowerUp();
+        }
+        
+        // Emit position update
+        this.emitPositionUpdate();
+        
+        // Send position to server for multiplayer sync
+        if (this.isLocalPlayer()) {
+          sendToServer(EVENTS.MOVE, {
+            x: this.x,
+            y: this.y,
+            direction: this.direction,
+            playerId: this.id
+          });
+        }
+        
+        // If we have a queued move, start it immediately with no delay
+        if (this.isLocalPlayer() && this.nextMoveQueued) {
+          // Start the next movement immediately
+          this.startNextMovement();
+        } else {
+          // No queued move, so we're done moving
+          this.movingToTarget = false;
+        }
+      } else {
+        // Use linear interpolation for smooth movement
+        this.x = this.gridX + (this.targetX - this.gridX) * this.moveProgress;
+        this.y = this.gridY + (this.targetY - this.gridY) * this.moveProgress;
+        
+        // Update visual position
+        this.updateVisualPosition();
+        
+        // Send position updates for remote players
+        if (this.isLocalPlayer() && performance.now() - this.lastMoveTime > 50) {
+          this.lastMoveTime = performance.now();
+          sendToServer(EVENTS.MOVE, {
+            x: this.x,
+            y: this.y,
+            targetX: this.targetX,
+            targetY: this.targetY,
+            direction: this.direction,
+            playerId: this.id
+          });
+        }
+        
+        return; // Exit early as we're still moving
+      }
+    } else {
+      // Not currently moving, start a new movement
+      this.startNextMovement();
+    }
+    
+    // Update visual position
+    this.updateVisualPosition();
+  }
+  
+  // Start the next movement based on the current direction
+  private startNextMovement(): void {
+    if (!this.isLocalPlayer()) {
+      return; // Only local players can initiate movement
+    }
+    
+    // Always force exact grid alignment before starting a new movement
+    // This ensures the player always moves in the exact direction pressed
+    this.x = this.gridX;
+    this.y = this.gridY;
+    
+    // Calculate the target grid position based on current direction
+    let targetGridX = this.gridX;
+    let targetGridY = this.gridY;
+    
+    switch (this.direction) {
       case Direction.UP:
-        newY -= distance;
+        targetGridY -= 1;
         break;
       case Direction.RIGHT:
-        newX += distance;
+        targetGridX += 1;
         break;
       case Direction.DOWN:
-        newY += distance;
+        targetGridY += 1;
         break;
       case Direction.LEFT:
-        newX -= distance;
+        targetGridX -= 1;
         break;
     }
     
-    // Check collision at new position
-    if (!collisionCallback(newX, newY)) {
-      // No collision, update position
-      this.x = newX;
-      this.y = newY;
+    // Check if the target position is valid (not a wall or block)
+    if (this.isValidPosition(targetGridX, targetGridY)) {
+      // Set current grid position
+      this.gridX = Math.floor(this.x);
+      this.gridY = Math.floor(this.y);
       
-      // Update visual position
-      this.updateVisualPosition();
+      // Set target position
+      this.targetX = targetGridX;
+      this.targetY = targetGridY;
       
-      // Emit position update event
-      this.emitPositionUpdate();
+      // Start moving to target
+      this.movingToTarget = true;
+      this.moveProgress = 0;
+      this.lastMoveTime = performance.now();
+      
+      // Send movement intent to server
+      sendToServer(EVENTS.MOVE, {
+        x: this.x,
+        y: this.y,
+        targetX: this.targetX,
+        targetY: this.targetY,
+        direction: this.direction,
+        playerId: this.id
+      });
+    } else {
+      // Can't move in this direction
+      this.nextMoveQueued = false;
     }
+  }
+  
+  // Easing function for smoother movement
+  private easeInOutQuad(t: number): number {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+  
+  // Check if the new direction is a change from the current movement direction
+  private isDirectionChange(newDirection: Direction): boolean {
+    // If we're moving up or down and the new direction is left or right, it's a change
+    if ((this.direction === Direction.UP || this.direction === Direction.DOWN) && 
+        (newDirection === Direction.LEFT || newDirection === Direction.RIGHT)) {
+      return true;
+    }
+    
+    // If we're moving left or right and the new direction is up or down, it's a change
+    if ((this.direction === Direction.LEFT || this.direction === Direction.RIGHT) && 
+        (newDirection === Direction.UP || newDirection === Direction.DOWN)) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Check if the new direction is the reverse of the current direction
+  private isReverseDirection(newDirection: Direction): boolean {
+    return (this.direction === Direction.UP && newDirection === Direction.DOWN) ||
+           (this.direction === Direction.DOWN && newDirection === Direction.UP) ||
+           (this.direction === Direction.LEFT && newDirection === Direction.RIGHT) ||
+           (this.direction === Direction.RIGHT && newDirection === Direction.LEFT);
   }
   
   // Check if this is the local player
@@ -347,9 +609,10 @@ export class Player {
       return;
     }
     
+    // Track pressed keys with timestamps
+    const pressedKeys: { [key: string]: number } = {};
+    
     const handleKeyDown = (event: KeyboardEvent) => {
-      console.log(`Key pressed: ${event.key} for player ${this.id}`);
-      
       // Skip if player is not in the game
       if (!this.playerElement) {
         console.log('Player element not found, skipping keyboard input');
@@ -358,64 +621,85 @@ export class Player {
       
       // Skip if game is paused or game is over
       if (isGamePaused || isGameOver) {
-        console.log('Game is paused or over, ignoring keyboard input');
         return;
       }
       
-      let newX = this.x;
-      let newY = this.y;
-      const speed = 1; // Full tile movement for better grid alignment
+      // Track this key as pressed with timestamp for priority
+      const currentTime = performance.now();
+      pressedKeys[event.key] = currentTime;
       
-      switch (event.key) {
-        case 'ArrowUp':
-          newY -= speed;
-          this.direction = Direction.UP;
-          break;
-        case 'ArrowRight':
-          newX += speed;
-          this.direction = Direction.RIGHT;
-          break;
-        case 'ArrowDown':
-          newY += speed;
-          this.direction = Direction.DOWN;
-          break;
-        case 'ArrowLeft':
-          newX -= speed;
-          this.direction = Direction.LEFT;
-          break;
-        case ' ': // Spacebar
-          this.placeBomb();
-          return; // Skip movement for bomb placement
-        default:
-          return; // Skip for other keys
+      // Handle spacebar for bomb placement separately
+      if (event.key === ' ') {
+        this.placeBomb();
       }
-      
-      console.log(`Attempting to move from (${this.x},${this.y}) to (${newX},${newY})`);
-      
-      // Check if the new position is valid
-      if (this.isValidPosition(newX, newY)) {
-        this.x = newX;
-        this.y = newY;
-        this.updateVisualPosition();
-        this.emitPositionUpdate();
-        console.log(`Moved to (${this.x},${this.y})`);
-        
-        // Only check for power-ups if we're the local player to avoid duplicate collection
-        if (this.isLocalPlayer()) {
-          // Instead of automatically collecting, check if there's a visible power-up and collect it manually
-          this.checkForVisiblePowerUp();
-        }
-      } else {
-        console.log(`Invalid position: (${newX},${newY})`);
-      }
-      
-      // Send position to server for multiplayer sync
-      sendToServer(EVENTS.MOVE, {
-        x: this.x,
-        y: this.y,
-        direction: this.direction
-      });
     };
+    
+    const handleKeyUp = (event: KeyboardEvent) => {
+      // Remove this key from pressed keys
+      delete pressedKeys[event.key];
+      
+      // If no movement keys are pressed, stop movement
+      if (!pressedKeys['ArrowUp'] && !pressedKeys['ArrowDown'] && 
+          !pressedKeys['ArrowLeft'] && !pressedKeys['ArrowRight']) {
+        this.direction = Direction.NONE;
+        this.moving = false;
+      }
+    };
+    
+    // Game update function to handle continuous movement
+    const updateMovement = (deltaTime: number) => {
+      // Skip if game is paused or over
+      if (isGamePaused || isGameOver || !this.playerElement) {
+        return;
+      }
+      
+      // Classic Bomberman-style direction handling
+      let direction = Direction.NONE;
+      
+      // Always prioritize the most recently pressed key
+      let lastPressedKey = '';
+      let lastPressedTime = 0;
+      
+      for (const key in pressedKeys) {
+        if (pressedKeys[key] > lastPressedTime) {
+          lastPressedKey = key;
+          lastPressedTime = pressedKeys[key];
+        }
+      }
+      
+      // Set direction based on the most recently pressed key
+      switch (lastPressedKey) {
+        case 'ArrowUp': direction = Direction.UP; break;
+        case 'ArrowRight': direction = Direction.RIGHT; break;
+        case 'ArrowDown': direction = Direction.DOWN; break;
+        case 'ArrowLeft': direction = Direction.LEFT; break;
+      }
+      
+      // If a direction key is pressed, move in that direction
+      if (direction !== Direction.NONE) {
+        this.move(direction, deltaTime, (x, y) => !this.isValidPosition(x, y));
+      }
+    };
+    
+    // Set up event listeners
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    
+    // Set up game loop for continuous movement
+    let lastTime = performance.now();
+    const gameLoop = () => {
+      const currentTime = performance.now();
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+      
+      updateMovement(deltaTime);
+      
+      // Continue the game loop
+      requestAnimationFrame(gameLoop);
+    };
+    
+    // Start the game loop
+    gameLoop();
     
     // Add event listener for keydown
     document.addEventListener('keydown', handleKeyDown);
@@ -428,26 +712,29 @@ export class Player {
   private isValidPosition(x: number, y: number): boolean {
     // Define map dimensions - using constants directly
     // The map is 15x17 (0-14 x 0-16)
-    const GRID_WIDTH = 14;
-    const GRID_HEIGHT = 16;
-    
-    // Prevent going out of bounds - allow movement to the full extent of the map
-    if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) {
-      return false;
-    }
+    const GRID_WIDTH = 15; // Adjusted to match actual map width
+    const GRID_HEIGHT = 17; // Adjusted to match actual map height
     
     // Get grid coordinates
     const gridX = Math.floor(x);
     const gridY = Math.floor(y);
     
-    // Check for fixed walls (grid pattern) in all areas of the map
-    // Apply this rule to all rows including the bottom rows
-    if (gridX % 2 === 0 && gridY % 2 === 0) {
-      return false; // Wall at even coordinates
+    // Prevent going out of bounds
+    if (gridX < 0 || gridY < 0 || gridX >= GRID_WIDTH || gridY >= GRID_HEIGHT) {
+      console.log(`Out of bounds: (${gridX}, ${gridY})`);
+      return false;
     }
     
-    // Check for border walls - only the very edge is a wall
-    if (gridX === 0 || gridY === 0) {
+    // Check for fixed walls (grid pattern) in all areas of the map
+    // These are the brown blocks that can't be destroyed
+    if (gridX % 2 === 0 && gridY % 2 === 0) {
+      console.log(`Fixed wall at (${gridX}, ${gridY})`);
+      return false;
+    }
+    
+    // Check for border walls
+    if (gridX === 0 || gridY === 0 || gridX === GRID_WIDTH - 1 || gridY === GRID_HEIGHT - 1) {
+      console.log(`Border wall at (${gridX}, ${gridY})`);
       return false;
     }
     
@@ -463,7 +750,7 @@ export class Player {
       return true; // Can walk through green spaces
     }
     
-    // Check for blocks (destructible blocks)
+    // Check for blocks (destructible blocks - the pyramid blocks)
     const blockElements = document.querySelectorAll('.block');
     for (let i = 0; i < blockElements.length; i++) {
       const block = blockElements[i] as HTMLElement;
@@ -471,6 +758,7 @@ export class Player {
       const blockY = Math.floor(parseInt(block.style.top) / TILE_SIZE);
       
       if (blockX === gridX && blockY === gridY) {
+        console.log(`Block at (${gridX}, ${gridY})`);
         return false; // Can't walk through blocks
       }
     }
@@ -483,6 +771,7 @@ export class Player {
       const bombY = Math.floor(parseInt(bomb.style.top) / TILE_SIZE);
       
       if (bombX === gridX && bombY === gridY) {
+        console.log(`Bomb at (${gridX}, ${gridY})`);
         return false; // Can't walk through bombs
       }
     }
@@ -495,7 +784,8 @@ export class Player {
     eventBus.emit('player:moved', {
       id: this.id,
       x: this.x,
-      y: this.y
+      y: this.y,
+      direction: this.direction
     });
   }
   
@@ -540,6 +830,8 @@ export class Player {
         break;
       case PowerUpType.SPEED:
         this.speed += 0.5;
+        // Update moveSpeed to reflect the new speed
+        this.moveSpeed = this.speed;
         console.log(`Increased speed to ${this.speed}`);
         break;
       case 'extraLife':
