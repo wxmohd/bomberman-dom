@@ -339,24 +339,97 @@ function joinGame(nickname: string, container: HTMLElement): void {
     return;
   }
   
-  // Update player store with waiting state
-  playerStore.setState({
-    gameState: 'waiting'
+  // Trim the nickname
+  const trimmedNickname = nickname.trim();
+  
+  // Create a promise to check if the nickname is available
+  const checkNicknameAvailability = new Promise<boolean>((resolve, reject) => {
+    // Flag to track if we've already resolved the promise
+    let isResolved = false;
+    
+    // Set up a one-time error handler for nickname validation
+    const errorHandler = (data: { message: string }) => {
+      if (data.message.includes('nickname is already taken') && !isResolved) {
+        // Mark as resolved
+        isResolved = true;
+        
+        // Show the error message
+        showErrorMessage(data.message);
+        
+        // Remove both handlers
+        eventBus.off('error', errorHandler);
+        eventBus.off('lobby_update', lobbyUpdateHandler);
+        
+        // Clear the timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Resolve the promise as false (nickname not available)
+        resolve(false);
+      }
+    };
+    
+    // Set up a one-time handler for lobby update (means nickname was accepted)
+    const lobbyUpdateHandler = () => {
+      if (!isResolved) {
+        // Mark as resolved
+        isResolved = true;
+        
+        // Remove both handlers
+        eventBus.off('error', errorHandler);
+        eventBus.off('lobby_update', lobbyUpdateHandler);
+        
+        // Clear the timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Resolve the promise
+        resolve(true);
+      }
+    };
+    
+    // Add the handlers
+    eventBus.on('error', errorHandler);
+    eventBus.on('lobby_update', lobbyUpdateHandler);
+    
+    // Emit player login event (this will trigger multiplayer initialization)
+    eventBus.emit('player:login', { nickname: trimmedNickname });
+    
+    // Join the lobby via WebSocket
+    sendToServer(EVENTS.JOIN_LOBBY, {});
+    
+    // Set a timeout to prevent hanging if no response is received
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        // Mark as resolved
+        isResolved = true;
+        
+        // Remove both handlers
+        eventBus.off('error', errorHandler);
+        eventBus.off('lobby_update', lobbyUpdateHandler);
+        
+        // Show timeout message and resolve as false
+        showErrorMessage('Connection timeout. Please try again.');
+        resolve(false);
+      }
+    }, 5000);
   });
   
-  // Emit player login event (this will trigger multiplayer initialization)
-  eventBus.emit('player:login', { nickname: nickname.trim() });
-  
-  // Join the lobby via WebSocket
-  sendToServer(EVENTS.JOIN_LOBBY, {});
-  
-  // Render waiting room
-  renderWaitingRoom(container);
-  
-  // Create and add the chat button directly
-  setTimeout(() => {
-    createChatButton();
-  }, 1000); // Longer delay to ensure everything is loaded
+  // Wait for the nickname check to complete before proceeding
+  checkNicknameAvailability.then(isAvailable => {
+    if (isAvailable) {
+      // Update player store with waiting state
+      playerStore.setState({
+        gameState: 'waiting'
+      });
+      
+      // Render waiting room
+      renderWaitingRoom(container);
+      
+      // Create and add the chat button directly
+      setTimeout(() => {
+        createChatButton();
+      }, 1000); // Longer delay to ensure everything is loaded
+    }
+  });
 }
 
 // Render the waiting room

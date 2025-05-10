@@ -69,6 +69,13 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Check if nickname is already taken by another player in the lobby
+    const nicknameExists = lobbyState.players.some(p => p.nickname.toLowerCase() === nickname.toLowerCase());
+    if (nicknameExists) {
+      socket.emit('error', { message: 'This nickname is already taken. Please choose a different one.' });
+      return;
+    }
+    
     // Assign player color and player number
     const playerIndex = lobbyState.players.length;
     const playerColor = playerColors[playerIndex % playerColors.length];
