@@ -12,6 +12,12 @@ let socket: Socket | null = null;
 // Connection status
 let isConnected = false;
 
+// Reconnection tracking
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY = 1000; // 1 second
+let lastKnownPositions: {[playerId: string]: any} = {};
+
 /**
  * Connect to the game server
  * @param nickname Player's nickname
@@ -24,12 +30,16 @@ export function connectToServer(nickname: string): Promise<void> {
       socket.disconnect();
     }
 
-    // Connect to the server
+    // Reset reconnection attempts
+    reconnectAttempts = 0;
+
+    // Connect to the server with improved reconnection settings
     socket = io(SERVER_URL, {
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+      reconnectionDelay: RECONNECT_DELAY,
+      timeout: 10000, // 10 seconds timeout
       query: {
         nickname
       }
@@ -39,10 +49,12 @@ export function connectToServer(nickname: string): Promise<void> {
     socket.on('connect', () => {
       console.log('Connected to server with ID:', socket?.id);
       isConnected = true;
+      reconnectAttempts = 0; // Reset reconnection attempts on successful connection
       
       // Store the socket ID in localStorage for player identification
       if (socket?.id) {
         localStorage.setItem('socketId', socket.id);
+        localStorage.setItem('playerId', socket.id); // Ensure playerId is also set
         console.log('Stored socket ID in localStorage:', socket.id);
       }
       
@@ -53,6 +65,15 @@ export function connectToServer(nickname: string): Promise<void> {
         // Immediately join lobby after connection
         socket.emit(EVENTS.JOIN_LOBBY, {});
         console.log('Instantly joining lobby after connection');
+        
+        // If we have last known positions, restore them after reconnection
+        const playerId = localStorage.getItem('playerId');
+        if (playerId && lastKnownPositions[playerId]) {
+          console.log('Restoring last known position after reconnection');
+          setTimeout(() => {
+            socket?.emit(EVENTS.MOVE, lastKnownPositions[playerId]);
+          }, 500); // Small delay to ensure server is ready
+        }
       }
       
       // Notify the application about the connection
@@ -63,16 +84,50 @@ export function connectToServer(nickname: string): Promise<void> {
 
     socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
-      if (socket) {
-        eventBus.emit('socket:error', { error: 'Failed to connect to server' });
+      reconnectAttempts++;
+      
+      if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
+        console.log(`Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        // The socket.io client will handle reconnection automatically
+      } else {
+        console.error('Max reconnection attempts reached');
+        if (socket) {
+          eventBus.emit('socket:error', { error: 'Failed to connect to server after multiple attempts' });
+        }
+        reject(error);
       }
-      reject(error);
     });
 
     socket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
       isConnected = false;
+      
+      // Attempt to reconnect if it was not an intentional disconnect
+      if (reason !== 'io client disconnect') {
+        console.log('Attempting to reconnect...');
+        // The socket.io client will handle reconnection automatically
+      }
+      
       eventBus.emit('socket:disconnected', { reason });
+    });
+    
+    // Handle reconnection attempts
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`Reconnection attempt ${attemptNumber}`);
+      eventBus.emit('socket:reconnecting', { attempt: attemptNumber });
+    });
+    
+    // Handle successful reconnection
+    socket.on('reconnect', () => {
+      console.log('Successfully reconnected to server');
+      isConnected = true;
+      eventBus.emit('socket:reconnected');
+    });
+    
+    // Handle failed reconnection
+    socket.on('reconnect_failed', () => {
+      console.error('Failed to reconnect to server');
+      eventBus.emit('socket:reconnect_failed');
     });
 
     // Set up event listeners for game events
@@ -108,6 +163,11 @@ const messageQueue: {event: string, data: any}[] = [];
  * @param data Event data
  */
 export function sendToServer(event: string, data: any): void {
+  // Store position data for reconnection purposes if this is a movement event
+  if (event === EVENTS.MOVE && data.playerId) {
+    lastKnownPositions[data.playerId] = {...data};
+  }
+  
   if (!socket || !socket.connected) {
     console.log(`Queueing event for later, not connected to server: ${event}`);
     // Add to queue to send when connection is established
@@ -120,11 +180,23 @@ export function sendToServer(event: string, data: any): void {
         processMessageQueue();
       });
     }
+    
+    // If we're not connected, try to reconnect
+    if (socket && !socket.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      console.log('Attempting to reconnect due to message send while disconnected');
+      socket.connect();
+    }
+    
     return;
   }
   
-  // If connected, send immediately
-  socket.emit(event, data);
+  // If connected, send immediately with error handling
+  try {
+    socket.emit(event, data);
+  } catch (error) {
+    console.error(`Error sending ${event} event:`, error);
+    messageQueue.push({event, data}); // Queue for retry
+  }
 }
 
 /**
@@ -138,14 +210,34 @@ function processMessageQueue(): void {
     return;
   }
   
-  // Send all queued messages
-  while (messageQueue.length > 0) {
-    const message = messageQueue.shift();
-    if (message) {
-      console.log(`Sending queued message: ${message.event}`);
-      socket.emit(message.event, message.data);
+  // First prioritize movement messages - only send the most recent one per player
+  const movementMessages = messageQueue.filter(msg => msg.event === EVENTS.MOVE);
+  const otherMessages = messageQueue.filter(msg => msg.event !== EVENTS.MOVE);
+  
+  // Group movement messages by player ID
+  const playerMovements: {[playerId: string]: any} = {};
+  movementMessages.forEach(msg => {
+    if (msg.data.playerId) {
+      playerMovements[msg.data.playerId] = msg;
     }
-  }
+  });
+  
+  // Send only the most recent movement message per player
+  Object.values(playerMovements).forEach(message => {
+    if (message) {
+      console.log(`Sending queued movement for player: ${message.data.playerId}`);
+      socket?.emit(message.event, message.data);
+    }
+  });
+  
+  // Send all other messages
+  otherMessages.forEach(message => {
+    console.log(`Sending queued message: ${message.event}`);
+    socket?.emit(message.event, message.data);
+  });
+  
+  // Clear the queue
+  messageQueue.length = 0;
 }
 
 /**
@@ -171,6 +263,16 @@ function setupGameEventListeners(): void {
     if (!data.playerId && data.id) {
       data.playerId = data.id; // Use id as playerId if not provided
     }
+    
+    // Store the position data for reconnection purposes
+    if (data.playerId) {
+      lastKnownPositions[data.playerId] = {...data};
+    }
+    
+    // Add timestamp to track the most recent update
+    data.timestamp = Date.now();
+    
+    // Emit the event for player movement
     eventBus.emit('remote:player:moved', data);
   });
 

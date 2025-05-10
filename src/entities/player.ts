@@ -52,7 +52,7 @@ export class Player {
   private movingToTarget: boolean = false;
   private moveProgress: number = 0;
   private lastSyncTime: number = 0;
-  private syncInterval: number = 100; // Sync position every 100ms
+  private syncInterval: number = 30; // Faster default sync rate (30ms instead of 100ms) for smoother movement
   
   // Classic Bomberman-style continuous movement system
   private moveSpeed: number = 3; // Base speed in grid cells per second
@@ -191,22 +191,54 @@ export class Player {
   // Handle remote player movement from websocket
   private handleRemoteMovement(data: any): void {
     // Extract position data
-    const { x, y, direction, targetX, targetY } = data;
+    const { x, y, direction, targetX, targetY, timestamp, speed } = data;
     
     // Skip if no valid position data
     if (x === undefined || y === undefined) return;
+    
+    // Update speed if provided to match the remote player's speed
+    if (speed !== undefined && speed > 0) {
+      // Only update if it's different to avoid unnecessary recalculations
+      if (this.speed !== speed) {
+        this.updateSpeed(speed);
+      }
+    }
     
     // Set direction if provided
     if (direction !== undefined) {
       this.direction = direction;
     }
     
-    // If we're already moving, complete the current movement first
+    // If we're already moving, check if this is a newer update
     if (this.movingToTarget) {
-      // If the target is the same as our current target, just update progress
+      // If the target is the same as our current target, just continue movement
       if (targetX === this.targetX && targetY === this.targetY) {
-        // Continue with current movement
         return;
+      }
+      
+      // If we're close to reaching our current target, finish that movement first
+      // unless this is a significant position change (teleport/correction)
+      if (this.moveProgress > 0.8) {
+        const distanceToTarget = Math.abs(this.x - targetX) + Math.abs(this.y - targetY);
+        if (distanceToTarget <= 1) {
+          // We're almost there and the new target is adjacent, finish current move first
+          return;
+        }
+      }
+      
+      // Check for large position discrepancies that indicate lag or teleportation
+      const currentX = this.gridX + (this.targetX - this.gridX) * this.moveProgress;
+      const currentY = this.gridY + (this.targetY - this.gridY) * this.moveProgress;
+      const distanceToActual = Math.abs(currentX - x) + Math.abs(currentY - y);
+      
+      if (distanceToActual > 1.5) {
+        // Significant discrepancy detected, snap to the correct position
+        console.log(`Large position discrepancy detected (${distanceToActual.toFixed(2)}), correcting position`);
+        this.gridX = Math.floor(x);
+        this.gridY = Math.floor(y);
+        this.x = this.gridX;
+        this.y = this.gridY;
+        this.moveProgress = 0;
       }
     }
     
@@ -240,6 +272,12 @@ export class Player {
       this.speed = speed;
       // Update moveSpeed for animation smoothness
       this.moveSpeed = this.speed;
+      
+      // Adjust sync interval based on speed to prevent lag at higher speeds
+      // As speed increases, we need to sync more frequently
+      // Start with a faster base sync rate (30ms instead of 100ms)
+      this.syncInterval = Math.max(20, Math.floor(30 / (speed / 3))); // Minimum 20ms, scaled by speed ratio
+      console.log(`Player speed updated to ${speed}, sync interval adjusted to ${this.syncInterval}ms`);
     }
   }
   
@@ -314,7 +352,7 @@ export class Player {
         background-color: transparent;
         z-index: 1000;
         box-sizing: border-box;
-        transition: left 0.1s, top 0.1s;
+        transition: left 0.05s ease-out, top 0.05s ease-out;
       `
     }, [nameTagVNode]);
     
@@ -385,6 +423,7 @@ export class Player {
     }
     
     // Always update the direction immediately
+    const previousDirection = this.direction;
     this.direction = direction;
     this.moving = true;
     
@@ -393,6 +432,39 @@ export class Player {
       // Force exact grid alignment to prevent direction issues
       this.x = this.gridX;
       this.y = this.gridY;
+    }
+    
+    // If the direction changed and we're moving to a target, we may need to change course
+    if (this.movingToTarget && this.isLocalPlayer() && previousDirection !== direction) {
+      // If we're changing to the opposite direction or making a turn at a junction
+      if (this.isReverseDirection(direction) || this.isDirectionChange(direction)) {
+        // Check if we can move in the new direction from our current position
+        let canMoveInNewDirection = false;
+        let newTargetX = Math.floor(this.x);
+        let newTargetY = Math.floor(this.y);
+        
+        switch (direction) {
+          case Direction.UP: newTargetY -= 1; break;
+          case Direction.RIGHT: newTargetX += 1; break;
+          case Direction.DOWN: newTargetY += 1; break;
+          case Direction.LEFT: newTargetX -= 1; break;
+        }
+        
+        // Check if the new target position is valid
+        canMoveInNewDirection = this.isValidPosition(newTargetX, newTargetY);
+        
+        if (canMoveInNewDirection) {
+          // Stop current movement and start in the new direction
+          this.x = Math.round(this.x); // Round to nearest grid cell
+          this.y = Math.round(this.y);
+          this.gridX = Math.floor(this.x);
+          this.gridY = Math.floor(this.y);
+          this.movingToTarget = false; // Reset current movement
+          this.moveProgress = 0;
+          
+          // We'll start a new movement below
+        }
+      }
     }
     
     // Store the current direction for the next move
@@ -452,7 +524,9 @@ export class Player {
             x: this.x,
             y: this.y,
             direction: this.direction,
-            playerId: this.id
+            playerId: this.id,
+            speed: this.speed,
+            timestamp: Date.now()
           });
         }
         
@@ -465,23 +539,26 @@ export class Player {
           this.movingToTarget = false;
         }
       } else {
-        // Use linear interpolation for smooth movement
-        this.x = this.gridX + (this.targetX - this.gridX) * this.moveProgress;
-        this.y = this.gridY + (this.targetY - this.gridY) * this.moveProgress;
+        // Use easing function for smoother movement instead of linear interpolation
+        const easedProgress = this.easeInOutQuad(this.moveProgress);
+        this.x = this.gridX + (this.targetX - this.gridX) * easedProgress;
+        this.y = this.gridY + (this.targetY - this.gridY) * easedProgress;
         
         // Update visual position
         this.updateVisualPosition();
         
-        // Send position updates for remote players
-        if (this.isLocalPlayer() && performance.now() - this.lastMoveTime > 50) {
-          this.lastMoveTime = performance.now();
+        // Send position updates for remote players - use dynamic syncInterval based on player speed
+        if (this.isLocalPlayer() && performance.now() - this.lastSyncTime > this.syncInterval) {
+          this.lastSyncTime = performance.now();
           sendToServer(EVENTS.MOVE, {
             x: this.x,
             y: this.y,
             targetX: this.targetX,
             targetY: this.targetY,
             direction: this.direction,
-            playerId: this.id
+            playerId: this.id,
+            speed: this.speed, // Send speed to help other clients interpolate movement
+            timestamp: Date.now() // Add timestamp for ordering updates
           });
         }
         
@@ -548,7 +625,9 @@ export class Player {
         targetX: this.targetX,
         targetY: this.targetY,
         direction: this.direction,
-        playerId: this.id
+        playerId: this.id,
+        speed: this.speed, // Include speed for better remote interpolation
+        timestamp: Date.now() // Add timestamp for ordering updates
       });
     } else {
       // Can't move in this direction
@@ -558,7 +637,8 @@ export class Player {
   
   // Easing function for smoother movement
   private easeInOutQuad(t: number): number {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    // Smoother acceleration/deceleration curve
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   }
   
   // Check if the new direction is a change from the current movement direction
@@ -660,19 +740,31 @@ export class Player {
       let lastPressedKey = '';
       let lastPressedTime = 0;
       
-      for (const key in pressedKeys) {
-        if (pressedKeys[key] > lastPressedTime) {
-          lastPressedKey = key;
-          lastPressedTime = pressedKeys[key];
+      // First check for opposite direction keys for immediate response
+      if (this.direction === Direction.LEFT && pressedKeys['ArrowRight']) {
+        direction = Direction.RIGHT;
+      } else if (this.direction === Direction.RIGHT && pressedKeys['ArrowLeft']) {
+        direction = Direction.LEFT;
+      } else if (this.direction === Direction.UP && pressedKeys['ArrowDown']) {
+        direction = Direction.DOWN;
+      } else if (this.direction === Direction.DOWN && pressedKeys['ArrowUp']) {
+        direction = Direction.UP;
+      } else {
+        // If no opposite direction, use the most recently pressed key
+        for (const key in pressedKeys) {
+          if (pressedKeys[key] > lastPressedTime) {
+            lastPressedKey = key;
+            lastPressedTime = pressedKeys[key];
+          }
         }
-      }
-      
-      // Set direction based on the most recently pressed key
-      switch (lastPressedKey) {
-        case 'ArrowUp': direction = Direction.UP; break;
-        case 'ArrowRight': direction = Direction.RIGHT; break;
-        case 'ArrowDown': direction = Direction.DOWN; break;
-        case 'ArrowLeft': direction = Direction.LEFT; break;
+        
+        // Set direction based on the most recently pressed key
+        switch (lastPressedKey) {
+          case 'ArrowUp': direction = Direction.UP; break;
+          case 'ArrowRight': direction = Direction.RIGHT; break;
+          case 'ArrowDown': direction = Direction.DOWN; break;
+          case 'ArrowLeft': direction = Direction.LEFT; break;
+        }
       }
       
       // If a direction key is pressed, move in that direction
