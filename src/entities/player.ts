@@ -188,140 +188,82 @@ export class Player {
     this.emitPositionUpdate();
   }
   
-  // Last received positions for remote players (for prediction)
-  private lastReceivedPositions: { x: number, y: number, timestamp: number }[] = [];
-  // Maximum positions to store for prediction (5 is usually enough)
-  private readonly MAX_POSITION_HISTORY = 5;
-  
-  // Handle remote player movement from websocket with advanced prediction
+  // Handle remote player movement from websocket with improved interpolation
   private handleRemoteMovement(data: any): void {
     // Extract position data
-    const { x, y, direction, targetX, targetY, timestamp, speed } = data;
+    const { x, y, direction, targetX, targetY, speed } = data;
     
     // Skip if no valid position data
     if (x === undefined || y === undefined) return;
     
-    // Store current time for calculations
-    const currentTime = performance.now();
-    
-    // Always update speed to match exactly what the server says
+    // Update speed if provided
     if (speed !== undefined && speed > 0) {
       this.speed = speed;
       this.moveSpeed = speed;
     }
     
-    // Set direction if provided
+    // Update direction if provided
     if (direction !== undefined) {
       this.direction = direction;
       this.moving = direction !== Direction.NONE;
     }
     
-    // Store this position in history for prediction
-    this.lastReceivedPositions.push({
-      x: x,
-      y: y,
-      timestamp: currentTime
-    });
+    // IMPROVED APPROACH: Use interpolation for smoother remote player movement
     
-    // Keep only the most recent positions
-    if (this.lastReceivedPositions.length > this.MAX_POSITION_HISTORY) {
-      this.lastReceivedPositions.shift();
-    }
+    // Set current grid position
+    this.gridX = Math.floor(x);
+    this.gridY = Math.floor(y);
     
-    // Calculate velocity based on position history (if we have enough data)
-    let predictedX = x;
-    let predictedY = y;
-    
-    if (this.lastReceivedPositions.length >= 2) {
-      // Get the two most recent positions
-      const newest = this.lastReceivedPositions[this.lastReceivedPositions.length - 1];
-      const previous = this.lastReceivedPositions[this.lastReceivedPositions.length - 2];
+    // If target coordinates are provided, set up movement to target
+    if (targetX !== undefined && targetY !== undefined) {
+      // Set target position
+      this.targetX = targetX;
+      this.targetY = targetY;
       
-      // Calculate time difference in seconds
-      const timeDiff = (newest.timestamp - previous.timestamp) / 1000;
+      // Calculate how far along the path we are
+      const totalDistance = Math.abs(targetX - this.gridX) + Math.abs(targetY - this.gridY);
       
-      if (timeDiff > 0) {
-        // Calculate velocity (units per second)
-        const velocityX = (newest.x - previous.x) / timeDiff;
-        const velocityY = (newest.y - previous.y) / timeDiff;
+      if (totalDistance > 0) {
+        // We're moving to a target
+        this.movingToTarget = true;
         
-        // Predict position based on velocity and network delay (typically 50-100ms)
-        // Use a conservative prediction of 50ms to avoid overshooting
-        const predictionTimeMs = 50; // milliseconds
-        predictedX = x + (velocityX * (predictionTimeMs / 1000));
-        predictedY = y + (velocityY * (predictionTimeMs / 1000));
-      }
-    }
-    
-    // Determine if this is a new movement or continuation
-    const isNewMovement = !this.movingToTarget || 
-                          targetX !== this.targetX || 
-                          targetY !== this.targetY;
-    
-    if (isNewMovement) {
-      // This is a new movement or direction change
-      
-      // Calculate exact positions (avoid floating point errors)
-      const exactX = Math.round(predictedX * 100) / 100;
-      const exactY = Math.round(predictedY * 100) / 100;
-      
-      // Set current position
-      this.gridX = Math.floor(exactX);
-      this.gridY = Math.floor(exactY);
-      
-      // For smooth transitions, use a blend of current and new position
-      if (this.playerElement) {
-        const currentVisualX = this.x;
-        const currentVisualY = this.y;
-        const distanceToNew = Math.abs(currentVisualX - exactX) + Math.abs(currentVisualY - exactY);
+        // Calculate exact position between grid and target
+        const exactX = x;
+        const exactY = y;
         
-        if (distanceToNew <= 2.0) {
-          // Blend current and new position for smoother transition (80% current, 20% new)
-          this.x = currentVisualX * 0.8 + exactX * 0.2;
-          this.y = currentVisualY * 0.8 + exactY * 0.2;
+        // Calculate progress based on current position
+        if (this.targetX !== this.gridX) {
+          // Moving horizontally
+          this.moveProgress = Math.abs(exactX - this.gridX) / Math.abs(this.targetX - this.gridX);
+        } else if (this.targetY !== this.gridY) {
+          // Moving vertically
+          this.moveProgress = Math.abs(exactY - this.gridY) / Math.abs(this.targetY - this.gridY);
         } else {
-          // Too far, use the predicted position directly
-          this.x = exactX;
-          this.y = exactY;
+          // At target
+          this.moveProgress = 1.0;
         }
         
-        // Update visual immediately
-        this.updateVisualPosition();
-      } else {
-        // No visual element yet, just use the predicted position
+        // Set exact position
         this.x = exactX;
         this.y = exactY;
-      }
-      
-      // Set target position if provided
-      if (targetX !== undefined && targetY !== undefined) {
-        this.targetX = targetX;
-        this.targetY = targetY;
-        this.movingToTarget = true;
-        this.moveProgress = 0;
-        this.moving = true;
-        this.lastMoveTime = currentTime;
+      } else {
+        // Already at target
+        this.movingToTarget = false;
+        this.x = this.gridX;
+        this.y = this.gridY;
       }
     } else {
-      // This is an update to an existing movement
-      // Use a more aggressive prediction for ongoing movement
-      const elapsedTime = (currentTime - this.lastMoveTime) / 1000; // in seconds
-      
-      // Calculate expected progress based on elapsed time and speed
-      // Add a small boost (1.1x) to compensate for network delay
-      const expectedProgress = elapsedTime * this.speed * 1.1;
-      
-      // Only update if the new progress would be greater
-      if (expectedProgress > this.moveProgress) {
-        this.moveProgress = Math.min(expectedProgress, 0.99);
-      }
-      
-      // Use cubic easing for smoother acceleration/deceleration
-      const easedProgress = this.easeInOutCubic(this.moveProgress);
-      this.x = this.gridX + (this.targetX - this.gridX) * easedProgress;
-      this.y = this.gridY + (this.targetY - this.gridY) * easedProgress;
-      this.updateVisualPosition();
+      // No target, just set exact position
+      this.movingToTarget = false;
+      this.x = x;
+      this.y = y;
     }
+    
+    // Update visual position immediately
+    this.updateVisualPosition();
+    
+    // Store current time
+    this.lastMoveTime = performance.now();
   }
   
   // Update player speed (works for both local and remote players)
@@ -630,13 +572,12 @@ export class Player {
         if (this.isLocalPlayer() && performance.now() - this.lastSyncTime > this.syncInterval) {
           this.lastSyncTime = performance.now();
           
-          // Optimize network payload by rounding values to 2 decimal places
-          // This significantly reduces bandwidth usage while maintaining accuracy
-          const optimizedX = Math.round(this.x * 100) / 100;
-          const optimizedY = Math.round(this.y * 100) / 100;
+          // Optimize network payload by rounding values to 3 decimal places for higher precision
+          // This ensures smoother movement at higher speeds while keeping bandwidth reasonable
+          const optimizedX = Math.round(this.x * 1000) / 1000;
+          const optimizedY = Math.round(this.y * 1000) / 1000;
           
-          // Create a minimal data packet to reduce network overhead
-          // Only send what's absolutely necessary for smooth movement
+          // Create a data packet with all necessary information for smooth interpolation
           const moveData = {
             x: optimizedX,
             y: optimizedY,
@@ -645,6 +586,7 @@ export class Player {
             direction: this.direction,
             playerId: this.id,
             speed: this.speed,
+            moveProgress: this.moveProgress, // Include progress for better interpolation
             timestamp: Date.now()
           };
           
@@ -708,7 +650,7 @@ export class Player {
       this.moveProgress = 0;
       this.lastMoveTime = performance.now();
       
-      // Send movement intent to server
+      // Send movement intent to server with high precision
       sendToServer(EVENTS.MOVE, {
         x: this.x,
         y: this.y,
@@ -716,8 +658,9 @@ export class Player {
         targetY: this.targetY,
         direction: this.direction,
         playerId: this.id,
-        speed: this.speed, // Include speed for better remote interpolation
-        timestamp: Date.now() // Add timestamp for ordering updates
+        speed: this.speed,
+        moveProgress: 0, // Starting a new movement
+        timestamp: Date.now()
       });
     } else {
       // Can't move in this direction
@@ -1062,9 +1005,13 @@ export class Player {
         console.log(`Increased explosion range to ${this.explosionRange}`);
         break;
       case PowerUpType.SPEED:
-        this.speed += 0.5;
+        // Standard speed increment with a reasonable cap
+        const maxSpeed = 5.0;
+        this.speed = Math.min(maxSpeed, this.speed + 0.5);
+        
         // Update moveSpeed to reflect the new speed
         this.moveSpeed = this.speed;
+        
         console.log(`Increased speed to ${this.speed}`);
         break;
       case 'extraLife':

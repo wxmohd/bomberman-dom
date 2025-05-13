@@ -30,6 +30,46 @@ let socket: Socket | null = null;
 // Connection status
 let isConnected = false;
 
+// Create socket connection
+export function createSocketConnection(nickname: string): Socket {
+  // Determine the server URL based on the current host
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+  const port = 3000; // The port your server is running on
+  
+  const serverUrl = `${protocol}//${host}:${port}`;
+  console.log(`Connecting to WebSocket server at: ${serverUrl}`);
+  
+  // Create socket with optimized transport options for gaming
+  const socket = io(SERVER_URL, {
+    transports: ['websocket'], // Force WebSocket transport only for lowest latency
+    upgrade: false, // Disable transport upgrades
+    reconnection: true, // Enable reconnection
+    reconnectionAttempts: 10, // Try to reconnect more times
+    reconnectionDelay: 500, // Wait less time before reconnecting
+    timeout: 5000, // Shorter connection timeout
+    forceNew: true, // Force a new connection each time
+    multiplex: false, // Disable multiplexing for dedicated connection
+    query: { nickname } // Pass nickname as a query parameter
+  });
+  
+  // Set up connection event handlers
+  socket.on('connect', () => {
+    console.log('Connected to server with ID:', socket.id);
+    socket.sendBuffer = []; // Clear any buffered messages on connect
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+  });
+  
+  return socket;
+}
+
 // Reconnection tracking
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -57,12 +97,13 @@ export function connectToServer(nickname: string): Promise<void> {
       reconnection: true,
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: RECONNECT_DELAY,
-      timeout: 10000, // 10 seconds timeout
+      timeout: 5000, // 5 seconds timeout (reduced from 10s)
       transports: ['websocket'], // Force WebSocket transport for better performance
       upgrade: false, // Disable transport upgrades
       forceNew: true, // Force a new connection
+      multiplex: false, // Disable multiplexing for dedicated connection
       query: {
-        nickname
+        nickname // Pass the nickname as a query parameter
       }
     });
 
@@ -103,7 +144,7 @@ export function connectToServer(nickname: string): Promise<void> {
       resolve();
     });
 
-    socket.on('connect_error', (error) => {
+    socket?.on('connect_error', (error) => {
       console.error('Connection error:', error);
       reconnectAttempts++;
       
@@ -119,7 +160,7 @@ export function connectToServer(nickname: string): Promise<void> {
       }
     });
 
-    socket.on('disconnect', (reason) => {
+    socket?.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
       isConnected = false;
       
@@ -133,20 +174,20 @@ export function connectToServer(nickname: string): Promise<void> {
     });
     
     // Handle reconnection attempts
-    socket.on('reconnect_attempt', (attemptNumber) => {
+    socket?.on('reconnect_attempt', (attemptNumber) => {
       console.log(`Reconnection attempt ${attemptNumber}`);
       eventBus.emit('socket:reconnecting', { attempt: attemptNumber });
     });
     
     // Handle successful reconnection
-    socket.on('reconnect', () => {
+    socket?.on('reconnect', () => {
       console.log('Successfully reconnected to server');
       isConnected = true;
       eventBus.emit('socket:reconnected');
     });
     
     // Handle failed reconnection
-    socket.on('reconnect_failed', () => {
+    socket?.on('reconnect_failed', () => {
       console.error('Failed to reconnect to server');
       eventBus.emit('socket:reconnect_failed');
     });
