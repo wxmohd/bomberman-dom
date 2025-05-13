@@ -3,8 +3,26 @@ import { io, Socket } from 'socket.io-client';
 import { eventBus } from '../../framework/events';
 import { EVENTS } from './events';
 
-// Default server URL - change this to your actual server URL
-const SERVER_URL = 'http://localhost:3000';
+// Dynamically determine the server URL based on the current environment
+// This allows connecting from other devices on the same network
+const getServerUrl = () => {
+  // Get the current hostname (works for both local and remote devices)
+  const host = window.location.hostname;
+  
+  // The WebSocket server always runs on port 3000
+  // But the game might be served from a different port (e.g., 5173 in development)
+  const wsPort = '3000';
+  
+  // In development, Vite serves assets on port 5173 but WebSocket is on 3000
+  // In production, both might be on the same port
+  return `http://${host}:${wsPort}`;
+};
+
+// Get the server URL dynamically
+const SERVER_URL = getServerUrl();
+
+// Log the server URL for debugging
+console.log('Connecting to WebSocket server at:', SERVER_URL);
 
 // Socket instance
 let socket: Socket | null = null;
@@ -33,13 +51,16 @@ export function connectToServer(nickname: string): Promise<void> {
     // Reset reconnection attempts
     reconnectAttempts = 0;
 
-    // Connect to the server with improved reconnection settings
+    // Connect to the server with optimized settings for network performance
     socket = io(SERVER_URL, {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: RECONNECT_DELAY,
       timeout: 10000, // 10 seconds timeout
+      transports: ['websocket'], // Force WebSocket transport for better performance
+      upgrade: false, // Disable transport upgrades
+      forceNew: true, // Force a new connection
       query: {
         nickname
       }

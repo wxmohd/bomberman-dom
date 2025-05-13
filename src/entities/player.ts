@@ -188,7 +188,12 @@ export class Player {
     this.emitPositionUpdate();
   }
   
-  // Handle remote player movement from websocket
+  // Last received positions for remote players (for prediction)
+  private lastReceivedPositions: { x: number, y: number, timestamp: number }[] = [];
+  // Maximum positions to store for prediction (5 is usually enough)
+  private readonly MAX_POSITION_HISTORY = 5;
+  
+  // Handle remote player movement from websocket with advanced prediction
   private handleRemoteMovement(data: any): void {
     // Extract position data
     const { x, y, direction, targetX, targetY, timestamp, speed } = data;
@@ -196,74 +201,127 @@ export class Player {
     // Skip if no valid position data
     if (x === undefined || y === undefined) return;
     
-    // Update speed if provided to match the remote player's speed
+    // Store current time for calculations
+    const currentTime = performance.now();
+    
+    // Always update speed to match exactly what the server says
     if (speed !== undefined && speed > 0) {
-      // Only update if it's different to avoid unnecessary recalculations
-      if (this.speed !== speed) {
-        this.updateSpeed(speed);
-      }
+      this.speed = speed;
+      this.moveSpeed = speed;
     }
     
     // Set direction if provided
     if (direction !== undefined) {
       this.direction = direction;
+      this.moving = direction !== Direction.NONE;
     }
     
-    // If we're already moving, check if this is a newer update
-    if (this.movingToTarget) {
-      // If the target is the same as our current target, just continue movement
-      if (targetX === this.targetX && targetY === this.targetY) {
-        return;
-      }
+    // Store this position in history for prediction
+    this.lastReceivedPositions.push({
+      x: x,
+      y: y,
+      timestamp: currentTime
+    });
+    
+    // Keep only the most recent positions
+    if (this.lastReceivedPositions.length > this.MAX_POSITION_HISTORY) {
+      this.lastReceivedPositions.shift();
+    }
+    
+    // Calculate velocity based on position history (if we have enough data)
+    let predictedX = x;
+    let predictedY = y;
+    
+    if (this.lastReceivedPositions.length >= 2) {
+      // Get the two most recent positions
+      const newest = this.lastReceivedPositions[this.lastReceivedPositions.length - 1];
+      const previous = this.lastReceivedPositions[this.lastReceivedPositions.length - 2];
       
-      // If we're close to reaching our current target, finish that movement first
-      // unless this is a significant position change (teleport/correction)
-      if (this.moveProgress > 0.8) {
-        const distanceToTarget = Math.abs(this.x - targetX) + Math.abs(this.y - targetY);
-        if (distanceToTarget <= 1) {
-          // We're almost there and the new target is adjacent, finish current move first
-          return;
+      // Calculate time difference in seconds
+      const timeDiff = (newest.timestamp - previous.timestamp) / 1000;
+      
+      if (timeDiff > 0) {
+        // Calculate velocity (units per second)
+        const velocityX = (newest.x - previous.x) / timeDiff;
+        const velocityY = (newest.y - previous.y) / timeDiff;
+        
+        // Predict position based on velocity and network delay (typically 50-100ms)
+        // Use a conservative prediction of 50ms to avoid overshooting
+        const predictionTimeMs = 50; // milliseconds
+        predictedX = x + (velocityX * (predictionTimeMs / 1000));
+        predictedY = y + (velocityY * (predictionTimeMs / 1000));
+      }
+    }
+    
+    // Determine if this is a new movement or continuation
+    const isNewMovement = !this.movingToTarget || 
+                          targetX !== this.targetX || 
+                          targetY !== this.targetY;
+    
+    if (isNewMovement) {
+      // This is a new movement or direction change
+      
+      // Calculate exact positions (avoid floating point errors)
+      const exactX = Math.round(predictedX * 100) / 100;
+      const exactY = Math.round(predictedY * 100) / 100;
+      
+      // Set current position
+      this.gridX = Math.floor(exactX);
+      this.gridY = Math.floor(exactY);
+      
+      // For smooth transitions, use a blend of current and new position
+      if (this.playerElement) {
+        const currentVisualX = this.x;
+        const currentVisualY = this.y;
+        const distanceToNew = Math.abs(currentVisualX - exactX) + Math.abs(currentVisualY - exactY);
+        
+        if (distanceToNew <= 2.0) {
+          // Blend current and new position for smoother transition (80% current, 20% new)
+          this.x = currentVisualX * 0.8 + exactX * 0.2;
+          this.y = currentVisualY * 0.8 + exactY * 0.2;
+        } else {
+          // Too far, use the predicted position directly
+          this.x = exactX;
+          this.y = exactY;
         }
+        
+        // Update visual immediately
+        this.updateVisualPosition();
+      } else {
+        // No visual element yet, just use the predicted position
+        this.x = exactX;
+        this.y = exactY;
       }
       
-      // Check for large position discrepancies that indicate lag or teleportation
-      const currentX = this.gridX + (this.targetX - this.gridX) * this.moveProgress;
-      const currentY = this.gridY + (this.targetY - this.gridY) * this.moveProgress;
-      const distanceToActual = Math.abs(currentX - x) + Math.abs(currentY - y);
-      
-      if (distanceToActual > 1.5) {
-        // Significant discrepancy detected, snap to the correct position
-        console.log(`Large position discrepancy detected (${distanceToActual.toFixed(2)}), correcting position`);
-        this.gridX = Math.floor(x);
-        this.gridY = Math.floor(y);
-        this.x = this.gridX;
-        this.y = this.gridY;
+      // Set target position if provided
+      if (targetX !== undefined && targetY !== undefined) {
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.movingToTarget = true;
         this.moveProgress = 0;
+        this.moving = true;
+        this.lastMoveTime = currentTime;
       }
-    }
-    
-    // Always use exact grid positions for remote players too
-    // This ensures consistent behavior between local and remote players
-    this.gridX = Math.floor(x);
-    this.gridY = Math.floor(y);
-    this.x = this.gridX;
-    this.y = this.gridY;
-    
-    // If target coordinates are provided, use them
-    if (targetX !== undefined && targetY !== undefined) {
-      // Start smooth movement to target
-      this.targetX = targetX;
-      this.targetY = targetY;
-      this.movingToTarget = true;
-      this.moveProgress = 0;
-      this.moving = true;
     } else {
-      // Just update the position directly
+      // This is an update to an existing movement
+      // Use a more aggressive prediction for ongoing movement
+      const elapsedTime = (currentTime - this.lastMoveTime) / 1000; // in seconds
+      
+      // Calculate expected progress based on elapsed time and speed
+      // Add a small boost (1.1x) to compensate for network delay
+      const expectedProgress = elapsedTime * this.speed * 1.1;
+      
+      // Only update if the new progress would be greater
+      if (expectedProgress > this.moveProgress) {
+        this.moveProgress = Math.min(expectedProgress, 0.99);
+      }
+      
+      // Use cubic easing for smoother acceleration/deceleration
+      const easedProgress = this.easeInOutCubic(this.moveProgress);
+      this.x = this.gridX + (this.targetX - this.gridX) * easedProgress;
+      this.y = this.gridY + (this.targetY - this.gridY) * easedProgress;
       this.updateVisualPosition();
     }
-    
-    // Update the last move time
-    this.lastMoveTime = performance.now();
   }
   
   // Update player speed (works for both local and remote players)
@@ -273,12 +331,17 @@ export class Player {
       // Update moveSpeed for animation smoothness
       this.moveSpeed = this.speed;
       
-      // Adjust sync interval based on speed to prevent lag at higher speeds
-      // As speed increases, we need to sync more frequently
-      // Start with a faster base sync rate (30ms instead of 100ms)
-      this.syncInterval = Math.max(20, Math.floor(30 / (speed / 3))); // Minimum 20ms, scaled by speed ratio
+      // Calculate the sync interval based on player speed
+      this.syncInterval = this.calculateSyncInterval();
       console.log(`Player speed updated to ${speed}, sync interval adjusted to ${this.syncInterval}ms`);
     }
+  }
+  
+  private calculateSyncInterval(): number {
+    // Fixed sync interval of 16ms (approximately 60 updates per second)
+    // This provides consistent updates regardless of player speed
+    // 60fps is the standard for smooth gameplay and matches most display refresh rates
+    return 16;
   }
   
   // Remove the player's visual element from the DOM
@@ -422,8 +485,24 @@ export class Player {
       return;
     }
     
-    // Always update the direction immediately
+    // Store the previous direction before updating
     const previousDirection = this.direction;
+    
+    // For local player, handle direction changes carefully to prevent opposite movement
+    if (this.isLocalPlayer()) {
+      // If we're changing to the opposite direction while already moving
+      if (this.movingToTarget && this.isReverseDirection(direction)) {
+        // Immediately stop current movement and snap to grid
+        this.x = Math.round(this.x);
+        this.y = Math.round(this.y);
+        this.gridX = Math.floor(this.x);
+        this.gridY = Math.floor(this.y);
+        this.movingToTarget = false;
+        this.moveProgress = 0;
+      }
+    }
+    
+    // Now update the direction
     this.direction = direction;
     this.moving = true;
     
@@ -547,19 +626,30 @@ export class Player {
         // Update visual position
         this.updateVisualPosition();
         
-        // Send position updates for remote players - use dynamic syncInterval based on player speed
+        // Send position updates for remote players at a fixed 60fps rate
         if (this.isLocalPlayer() && performance.now() - this.lastSyncTime > this.syncInterval) {
           this.lastSyncTime = performance.now();
-          sendToServer(EVENTS.MOVE, {
-            x: this.x,
-            y: this.y,
+          
+          // Optimize network payload by rounding values to 2 decimal places
+          // This significantly reduces bandwidth usage while maintaining accuracy
+          const optimizedX = Math.round(this.x * 100) / 100;
+          const optimizedY = Math.round(this.y * 100) / 100;
+          
+          // Create a minimal data packet to reduce network overhead
+          // Only send what's absolutely necessary for smooth movement
+          const moveData = {
+            x: optimizedX,
+            y: optimizedY,
             targetX: this.targetX,
             targetY: this.targetY,
             direction: this.direction,
             playerId: this.id,
-            speed: this.speed, // Send speed to help other clients interpolate movement
-            timestamp: Date.now() // Add timestamp for ordering updates
-          });
+            speed: this.speed,
+            timestamp: Date.now()
+          };
+          
+          // Send the optimized data packet
+          sendToServer(EVENTS.MOVE, moveData);
         }
         
         return; // Exit early as we're still moving
@@ -641,6 +731,12 @@ export class Player {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   }
   
+  // Cubic easing function for even smoother movement
+  private easeInOutCubic(t: number): number {
+    // More pronounced acceleration/deceleration curve
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  
   // Check if the new direction is a change from the current movement direction
   private isDirectionChange(newDirection: Direction): boolean {
     // If we're moving up or down and the new direction is left or right, it's a change
@@ -664,6 +760,37 @@ export class Player {
            (this.direction === Direction.DOWN && newDirection === Direction.UP) ||
            (this.direction === Direction.LEFT && newDirection === Direction.RIGHT) ||
            (this.direction === Direction.RIGHT && newDirection === Direction.LEFT);
+  }
+  
+  // Force an immediate direction change when pressing the opposite direction key
+  private forceDirectionChange(newDirection: Direction): void {
+    // Only do this for the local player
+    if (!this.isLocalPlayer()) return;
+    
+    // Immediately stop current movement and snap to nearest grid position
+    this.x = Math.round(this.x);
+    this.y = Math.round(this.y);
+    
+    // Update grid position
+    this.gridX = Math.floor(this.x);
+    this.gridY = Math.floor(this.y);
+    
+    // Reset movement state
+    this.movingToTarget = false;
+    this.moveProgress = 0;
+    
+    // Update direction
+    this.direction = newDirection;
+    
+    // Send position update to server for multiplayer sync
+    sendToServer(EVENTS.MOVE, {
+      x: this.x,
+      y: this.y,
+      direction: this.direction,
+      playerId: this.id,
+      speed: this.speed,
+      timestamp: Date.now()
+    });
   }
   
   // Check if this is the local player
@@ -740,15 +867,29 @@ export class Player {
       let lastPressedKey = '';
       let lastPressedTime = 0;
       
-      // First check for opposite direction keys for immediate response
+      // Handle direction changes with priority for opposite directions
+      // This ensures immediate response when changing directions
       if (this.direction === Direction.LEFT && pressedKeys['ArrowRight']) {
         direction = Direction.RIGHT;
+        // Force an immediate direction change without waiting for the next grid cell
+        if (this.movingToTarget) {
+          this.forceDirectionChange(direction);
+        }
       } else if (this.direction === Direction.RIGHT && pressedKeys['ArrowLeft']) {
         direction = Direction.LEFT;
+        if (this.movingToTarget) {
+          this.forceDirectionChange(direction);
+        }
       } else if (this.direction === Direction.UP && pressedKeys['ArrowDown']) {
         direction = Direction.DOWN;
+        if (this.movingToTarget) {
+          this.forceDirectionChange(direction);
+        }
       } else if (this.direction === Direction.DOWN && pressedKeys['ArrowUp']) {
         direction = Direction.UP;
+        if (this.movingToTarget) {
+          this.forceDirectionChange(direction);
+        }
       } else {
         // If no opposite direction, use the most recently pressed key
         for (const key in pressedKeys) {

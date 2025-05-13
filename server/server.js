@@ -232,21 +232,40 @@ io.on('connection', (socket) => {
   
   // Handle player movement
   socket.on('move', (data) => {
-    if (!gameState.players[socket.id]) return;
+    // Skip if game is not in progress
+    if (!gameState.players[socket.id]) {
+      return;
+    }
     
-    // Update player position
-    gameState.players[socket.id].x = data.x;
-    gameState.players[socket.id].y = data.y;
-    gameState.players[socket.id].direction = data.direction;
+    // Update player position with minimal processing to reduce server latency
+    const player = gameState.players[socket.id];
+    player.x = data.x;
+    player.y = data.y;
+    player.direction = data.direction;
     
-    // Broadcast movement to all players including the sender
-    // This ensures consistent state across all clients
-    io.emit('move', {
+    // Add server timestamp for synchronization
+    const serverTimestamp = Date.now();
+    
+    // Broadcast to all other players using both event names for compatibility
+    // First with the standard 'move' event that the game was using before
+    socket.broadcast.emit('move', {
       playerId: socket.id,
       x: data.x,
       y: data.y,
+      direction: data.direction
+    });
+    
+    // Also emit with the new event name for enhanced movement
+    socket.broadcast.emit('remote:player:moved', {
+      playerId: socket.id,
+      x: data.x,
+      y: data.y,
+      targetX: data.targetX,
+      targetY: data.targetY,
       direction: data.direction,
-      nickname: gameState.players[socket.id].nickname
+      speed: data.speed, // Forward speed information for accurate interpolation
+      timestamp: serverTimestamp, // Use server timestamp for consistency
+      clientTimestamp: data.timestamp // Include original client timestamp for latency calculation
     });
   });
   
@@ -830,6 +849,24 @@ app.use(express.static(path.join(__dirname, '../')));
 
 // Start the server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+
+// Listen on all network interfaces (0.0.0.0) instead of just localhost
+server.listen(PORT, '0.0.0.0', () => {
+  // Get the server's local IP address to display for connecting
+  const { networkInterfaces } = require('os');
+  const nets = networkInterfaces();
+  let localIP = 'localhost';
+  
+  // Find the local IP address (non-internal IPv4)
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip over internal and non-IPv4 addresses
+      if (net.family === 'IPv4' && !net.internal) {
+        localIP = net.address;
+      }
+    }
+  }
+  
   console.log(`Bomberman game server running on port ${PORT}`);
+  console.log(`Connect from other devices using: http://${localIP}:${PORT}`);
 });
