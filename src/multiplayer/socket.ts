@@ -74,7 +74,27 @@ export function createSocketConnection(nickname: string): Socket {
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_DELAY = 1000; // 1 second
+
+// Position tracking for reliable movement synchronization
 let lastKnownPositions: {[playerId: string]: any} = {};
+let positionBuffer: {[playerId: string]: any[]} = {}; // Buffer recent positions for interpolation
+const POSITION_BUFFER_SIZE = 10; // Store last 10 positions for smooth interpolation
+
+// Movement prediction configuration
+const MOVEMENT_PREDICTION_ENABLED = true; // Enable client-side prediction
+const MAX_POSITION_DELAY = 200; // Maximum milliseconds to wait before force-syncing position
+
+// Network statistics for adaptive synchronization
+let networkStats = {
+  averagePing: 0,
+  pingMeasurements: [] as number[],
+  packetLoss: 0,
+  lastSyncTime: 0,
+  syncInterval: 50 // Start with 50ms sync interval, will adapt based on network conditions
+};
+
+// Track sequence numbers to handle out-of-order packets
+let lastSequenceNumber: {[playerId: string]: number} = {};
 
 /**
  * Connect to the game server
@@ -91,21 +111,32 @@ export function connectToServer(nickname: string): Promise<void> {
     // Reset reconnection attempts
     reconnectAttempts = 0;
 
-    // Connect to the server with optimized settings for network performance
+    // Connect to the server with optimized settings for network performance and reliability
     socket = io(SERVER_URL, {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: RECONNECT_DELAY,
-      timeout: 5000, // 5 seconds timeout (reduced from 10s)
+      timeout: 5000, // 5 seconds timeout
       transports: ['websocket'], // Force WebSocket transport for better performance
       upgrade: false, // Disable transport upgrades
       forceNew: true, // Force a new connection
       multiplex: false, // Disable multiplexing for dedicated connection
+      // Retry configuration
+      randomizationFactor: 0.5, // Add randomization to reconnection attempts
       query: {
-        nickname // Pass the nickname as a query parameter
+        nickname, // Pass the nickname as a query parameter
+        clientTime: Date.now().toString() // Send client time for potential time synchronization
       }
     });
+    
+    // Set custom ping interval after connection (socket.io-client doesn't support these in options)
+    if (socket) {
+      // @ts-ignore - These are valid socket.io properties but might not be in the type definitions
+      socket.io.opts.pingInterval = 2000; // Send ping packet every 2 seconds (default is 25s)
+      // @ts-ignore
+      socket.io.opts.pingTimeout = 3000; // Consider connection closed if no pong received after 3s
+    }
 
     // Handle connection events
     socket.on('connect', () => {
@@ -220,28 +251,15 @@ export function isConnectedToServer(): boolean {
 const messageQueue: {event: string, data: any}[] = [];
 
 /**
- * Send an event to the server
+ * Send an event to the server with enhanced reliability for player movement
  * @param event Event name
  * @param data Event data
  */
 export function sendToServer(event: string, data: any): void {
-  // Store position data for reconnection purposes if this is a movement event
-  if (event === EVENTS.MOVE && data.playerId) {
-    lastKnownPositions[data.playerId] = {...data};
-  }
-  
-  if (!socket || !socket.connected) {
-    console.log(`Queueing event for later, not connected to server: ${event}`);
-    // Add to queue to send when connection is established
-    messageQueue.push({event, data});
-    
-    // Make sure we have a listener for when connection is established
-    if (socket) {
-      socket.once('connect', () => {
-        // Process queued messages
-        processMessageQueue();
-      });
-    }
+  // If not connected, queue the message for later
+  if (!socket || !isConnected) {
+    console.log(`Not connected to server, queueing message: ${event}`);
+    messageQueue.push({ event, data });
     
     // If we're not connected, try to reconnect
     if (socket && !socket.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {

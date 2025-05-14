@@ -556,27 +556,38 @@ function startGame(container: HTMLElement, gameData?: any) {
     currentPlayer
   });
   
-  // Set up event listeners for remote player movements
+  // Set up event listeners for remote player movements with enhanced synchronization
   eventBus.on('remote:player:moved', (data) => {
-    console.log('Remote player movement:', data);
-    
     // Skip if this is the local player's movement
     if (data.playerId === localStorage.getItem('playerId')) {
       return;
     }
     
-    // Find the player element
-    const playerElement = document.getElementById(`player-${data.playerId}`);
-    if (!playerElement) {
-      console.error(`Player element not found for ID: ${data.playerId}`);
-      return;
+    // Find the player instance in the global array
+    const playerInstance = window.playerInstances?.find(p => p.id === data.playerId);
+    
+    if (playerInstance) {
+      // Use the player's handleRemoteMovement method for proper interpolation
+      playerInstance.handleRemoteMovement(data);
+    } else {
+      // Fallback to direct DOM manipulation if player instance not found
+      const playerElement = document.getElementById(`player-${data.playerId}`);
+      if (!playerElement) {
+        console.error(`Player element not found for ID: ${data.playerId}`);
+        return;
+      }
+      
+      // Apply smooth transition for remote player movement
+      if (!playerElement.style.transition || playerElement.style.transition === '') {
+        playerElement.style.transition = 'left 0.1s linear, top 0.1s linear';
+      }
+      
+      // Update player position with high precision
+      playerElement.style.left = `${data.x * TILE_SIZE}px`;
+      playerElement.style.top = `${data.y * TILE_SIZE}px`;
+      
+      console.log(`Updated remote player ${data.playerId} position to ${data.x},${data.y}`);
     }
-    
-    // Update player position
-    playerElement.style.left = `${data.x * TILE_SIZE}px`;
-    playerElement.style.top = `${data.y * TILE_SIZE}px`;
-    
-    console.log(`Updated remote player ${data.playerId} position to ${data.x},${data.y}`);
   });
   
   // Handle remote bomb placements

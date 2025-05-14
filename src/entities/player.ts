@@ -54,6 +54,13 @@ export class Player {
   private lastSyncTime: number = 0;
   private syncInterval: number = 30; // Faster default sync rate (30ms instead of 100ms) for smoother movement
   
+  // Websocket synchronization properties
+  private _sequenceNumber: number = 0; // For tracking packet order
+  private _positionHistory: any[] = []; // For interpolation and prediction
+  private _lastReceivedSequence: number = 0; // Track last received sequence number
+  private _networkLatency: number = 0; // Estimated network latency
+  private _packetLossCount: number = 0; // Count of detected packet loss
+  
   // Classic Bomberman-style continuous movement system
   private moveSpeed: number = 3; // Base speed in grid cells per second
   private lastMoveTime: number = 0;
@@ -188,82 +195,148 @@ export class Player {
     this.emitPositionUpdate();
   }
   
-  // Handle remote player movement from websocket with improved interpolation
+  // EXACT-MIRROR remote player movement handler - 100% identical to local player
   private handleRemoteMovement(data: any): void {
-    // Extract position data
-    const { x, y, direction, targetX, targetY, speed } = data;
+    // Extract complete movement state
+    const { x, y, gridX, gridY, targetX, targetY, direction, speed, moveProgress, movingToTarget, frameId } = data;
     
     // Skip if no valid position data
     if (x === undefined || y === undefined) return;
     
-    // Update speed if provided
-    if (speed !== undefined && speed > 0) {
-      this.speed = speed;
-      this.moveSpeed = speed;
+    // EXTREME HIGH-SPEED HANDLING: For players with 5+ speed powerups
+    const isExtremeSpeed = speed && speed >= 5;
+    
+    // For extremely high speeds, we need to completely mirror the local player state
+    if (isExtremeSpeed) {
+      // Directly copy all movement state variables exactly as they are
+      // This ensures 100% identical movement regardless of speed
+      this.x = x;
+      this.y = y;
+      
+      // Copy grid positions if provided
+      if (gridX !== undefined && gridY !== undefined) {
+        this.gridX = gridX;
+        this.gridY = gridY;
+      } else {
+        // Calculate from position if not provided
+        this.gridX = Math.floor(x);
+        this.gridY = Math.floor(y);
+      }
+      
+      // Copy target positions if provided
+      if (targetX !== undefined && targetY !== undefined) {
+        this.targetX = targetX;
+        this.targetY = targetY;
+      }
+      
+      // Copy movement state if provided
+      if (movingToTarget !== undefined) {
+        this.movingToTarget = movingToTarget;
+      }
+      
+      // Copy movement progress if provided
+      if (moveProgress !== undefined) {
+        this.moveProgress = moveProgress;
+      }
+      
+      // Copy direction if provided
+      if (direction !== undefined) {
+        this.direction = direction;
+        this.moving = direction !== Direction.NONE;
+      }
+      
+      // Copy speed if provided
+      if (speed !== undefined && speed > 0) {
+        this.speed = speed;
+        this.moveSpeed = speed;
+      }
+      
+      // DIRECT VISUAL UPDATE: No transitions for extreme speeds
+      // This prevents any animation lag that could cause desynchronization
+      if (this.playerElement) {
+        // Remove any existing transition for instant position update
+        this.playerElement.style.transition = 'none';
+        
+        // Apply position directly to DOM
+        this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
+        this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
+      }
+      
+      return; // Exit early - no need for further processing
     }
     
-    // Update direction if provided
+    // NORMAL AND HIGH SPEED HANDLING (speed < 5)
+    // Store previous position for animation calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
+    // Update position and state
+    this.x = x;
+    this.y = y;
+    
+    // Update other state variables if provided
+    if (gridX !== undefined && gridY !== undefined) {
+      this.gridX = gridX;
+      this.gridY = gridY;
+    } else {
+      this.gridX = Math.floor(x);
+      this.gridY = Math.floor(y);
+    }
+    
+    if (targetX !== undefined && targetY !== undefined) {
+      this.targetX = targetX;
+      this.targetY = targetY;
+    }
+    
+    if (movingToTarget !== undefined) {
+      this.movingToTarget = movingToTarget;
+    }
+    
+    if (moveProgress !== undefined) {
+      this.moveProgress = moveProgress;
+    }
+    
     if (direction !== undefined) {
       this.direction = direction;
       this.moving = direction !== Direction.NONE;
     }
     
-    // IMPROVED APPROACH: Use interpolation for smoother remote player movement
-    
-    // Set current grid position
-    this.gridX = Math.floor(x);
-    this.gridY = Math.floor(y);
-    
-    // If target coordinates are provided, set up movement to target
-    if (targetX !== undefined && targetY !== undefined) {
-      // Set target position
-      this.targetX = targetX;
-      this.targetY = targetY;
-      
-      // Calculate how far along the path we are
-      const totalDistance = Math.abs(targetX - this.gridX) + Math.abs(targetY - this.gridY);
-      
-      if (totalDistance > 0) {
-        // We're moving to a target
-        this.movingToTarget = true;
-        
-        // Calculate exact position between grid and target
-        const exactX = x;
-        const exactY = y;
-        
-        // Calculate progress based on current position
-        if (this.targetX !== this.gridX) {
-          // Moving horizontally
-          this.moveProgress = Math.abs(exactX - this.gridX) / Math.abs(this.targetX - this.gridX);
-        } else if (this.targetY !== this.gridY) {
-          // Moving vertically
-          this.moveProgress = Math.abs(exactY - this.gridY) / Math.abs(this.targetY - this.gridY);
-        } else {
-          // At target
-          this.moveProgress = 1.0;
-        }
-        
-        // Set exact position
-        this.x = exactX;
-        this.y = exactY;
-      } else {
-        // Already at target
-        this.movingToTarget = false;
-        this.x = this.gridX;
-        this.y = this.gridY;
-      }
-    } else {
-      // No target, just set exact position
-      this.movingToTarget = false;
-      this.x = x;
-      this.y = y;
+    if (speed !== undefined && speed > 0) {
+      this.speed = speed;
+      this.moveSpeed = speed;
     }
     
-    // Update visual position immediately
-    this.updateVisualPosition();
-    
-    // Store current time
-    this.lastMoveTime = performance.now();
+    // SMOOTH ANIMATION: Use appropriate transition based on speed
+    if (this.playerElement) {
+      // Calculate the movement vector
+      const dx = this.x - prevX;
+      const dy = this.y - prevY;
+      
+      // Only animate if there's actual movement
+      if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+        // Remove any existing transition
+        this.playerElement.style.transition = 'none';
+        
+        // Force a reflow to ensure the transition removal takes effect
+        void this.playerElement.offsetWidth;
+        
+        // Adjust transition duration based on speed
+        // Faster speed = shorter transition for responsive feel
+        const transitionDuration = speed && speed > 3 ? 0.02 : 0.05; // seconds
+        
+        // Add transition with adaptive timing
+        this.playerElement.style.transition = `left ${transitionDuration}s ease-out, top ${transitionDuration}s ease-out`;
+        
+        // Apply the new position
+        this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
+        this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
+      } else {
+        // For very small movements, update without transition to avoid jitter
+        this.playerElement.style.transition = 'none';
+        this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
+        this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
+      }
+    }
   }
   
   // Update player speed (works for both local and remote players)
@@ -279,10 +352,10 @@ export class Player {
     }
   }
   
+  // Use a fixed sync interval for perfect synchronization
   private calculateSyncInterval(): number {
-    // Fixed sync interval of 16ms (approximately 60 updates per second)
-    // This provides consistent updates regardless of player speed
-    // 60fps is the standard for smooth gameplay and matches most display refresh rates
+    // Always use 16ms (60fps) for perfect synchronization
+    // This ensures the most frequent updates possible for exact movement replication
     return 16;
   }
   
@@ -394,11 +467,17 @@ export class Player {
     // No animations for player characters to keep the original images clean
   }
   
-  // Update the visual position of the player
+  // Update the visual position of the player with consistent animation
   private updateVisualPosition(): void {
     if (this.playerElement) {
-      // For player movement, we'll use direct style updates for performance
-      // This is a common optimization even in frameworks
+      // Apply the exact same animation approach for both local and remote players
+      // This ensures consistent visual movement across all clients
+      
+      // First set the transition for smooth movement
+      // The ease-out timing function gives a natural feel to the movement
+      this.playerElement.style.transition = 'left 0.05s ease-out, top 0.05s ease-out';
+      
+      // Then update the position
       this.playerElement.style.left = `${this.x * TILE_SIZE}px`;
       this.playerElement.style.top = `${this.y * TILE_SIZE}px`;
     }
@@ -539,14 +618,14 @@ export class Player {
         // Emit position update
         this.emitPositionUpdate();
         
-        // Send position to server for multiplayer sync
+        // Send position to server for multiplayer sync - SIMPLIFIED
         if (this.isLocalPlayer()) {
+          // ULTRA-SIMPLIFIED: Send only the absolute minimum data needed for visual replication
           sendToServer(EVENTS.MOVE, {
             x: this.x,
             y: this.y,
             direction: this.direction,
             playerId: this.id,
-            speed: this.speed,
             timestamp: Date.now()
           });
         }
@@ -568,29 +647,39 @@ export class Player {
         // Update visual position
         this.updateVisualPosition();
         
-        // Send position updates for remote players at a fixed 60fps rate
-        if (this.isLocalPlayer() && performance.now() - this.lastSyncTime > this.syncInterval) {
+        // FRAME-PERFECT SYNCHRONIZATION: Send updates on EVERY frame for high-speed movement
+        // This ensures perfect synchronization regardless of player speed
+        if (this.isLocalPlayer()) {
+          // Always update on every frame - no delay
           this.lastSyncTime = performance.now();
           
-          // Optimize network payload by rounding values to 3 decimal places for higher precision
-          // This ensures smoother movement at higher speeds while keeping bandwidth reasonable
-          const optimizedX = Math.round(this.x * 1000) / 1000;
-          const optimizedY = Math.round(this.y * 1000) / 1000;
-          
-          // Create a data packet with all necessary information for smooth interpolation
+          // Create a complete movement state snapshot
           const moveData = {
-            x: optimizedX,
-            y: optimizedY,
+            // Current position (exact)
+            x: this.x,
+            y: this.y,
+            
+            // Grid position
+            gridX: this.gridX,
+            gridY: this.gridY,
+            
+            // Target position
             targetX: this.targetX,
             targetY: this.targetY,
+            
+            // Movement state
             direction: this.direction,
             playerId: this.id,
             speed: this.speed,
-            moveProgress: this.moveProgress, // Include progress for better interpolation
-            timestamp: Date.now()
+            moveProgress: this.moveProgress,
+            movingToTarget: this.movingToTarget,
+            
+            // Timing
+            timestamp: Date.now(),
+            frameId: Math.floor(performance.now() * 60 / 1000) // Frame counter for ordering
           };
           
-          // Send the optimized data packet
+          // Send the complete movement state
           sendToServer(EVENTS.MOVE, moveData);
         }
         
@@ -650,16 +739,12 @@ export class Player {
       this.moveProgress = 0;
       this.lastMoveTime = performance.now();
       
-      // Send movement intent to server with high precision
+      // Send movement intent to server - SIMPLIFIED
       sendToServer(EVENTS.MOVE, {
         x: this.x,
         y: this.y,
-        targetX: this.targetX,
-        targetY: this.targetY,
         direction: this.direction,
         playerId: this.id,
-        speed: this.speed,
-        moveProgress: 0, // Starting a new movement
         timestamp: Date.now()
       });
     } else {
@@ -725,13 +810,12 @@ export class Player {
     // Update direction
     this.direction = newDirection;
     
-    // Send position update to server for multiplayer sync
+    // Send position update to server for multiplayer sync - SIMPLIFIED
     sendToServer(EVENTS.MOVE, {
       x: this.x,
       y: this.y,
       direction: this.direction,
       playerId: this.id,
-      speed: this.speed,
       timestamp: Date.now()
     });
   }
@@ -955,14 +1039,25 @@ export class Player {
     return true; // No obstacles found
   }
   
-  // Emit position update event
+  // Emit position update event with enhanced data for perfect synchronization
   private emitPositionUpdate(): void {
-    eventBus.emit('player:moved', {
+    // Create a comprehensive data packet with all movement information
+    const positionData = {
       id: this.id,
       x: this.x,
       y: this.y,
-      direction: this.direction
-    });
+      gridX: this.gridX,
+      gridY: this.gridY,
+      targetX: this.targetX,
+      targetY: this.targetY,
+      direction: this.direction,
+      moveProgress: this.moveProgress,
+      movingToTarget: this.movingToTarget,
+      speed: this.speed
+    };
+    
+    // Emit the enhanced data
+    eventBus.emit('player:moved', positionData);
   }
   
   // Handle power-up application (from actual power-up collection)
