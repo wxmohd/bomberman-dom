@@ -251,31 +251,23 @@ export function isConnectedToServer(): boolean {
 const messageQueue: {event: string, data: any}[] = [];
 
 /**
- * Send an event to the server with enhanced reliability for player movement
+ * Send an event to the server
  * @param event Event name
  * @param data Event data
  */
 export function sendToServer(event: string, data: any): void {
   // If not connected, queue the message for later
   if (!socket || !isConnected) {
-    console.log(`Not connected to server, queueing message: ${event}`);
     messageQueue.push({ event, data });
-    
-    // If we're not connected, try to reconnect
-    if (socket && !socket.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      console.log('Attempting to reconnect due to message send while disconnected');
-      socket.connect();
-    }
-    
     return;
   }
   
-  // If connected, send immediately with error handling
+  // If connected, send immediately
   try {
     socket.emit(event, data);
   } catch (error) {
     console.error(`Error sending ${event} event:`, error);
-    messageQueue.push({event, data}); // Queue for retry
+    messageQueue.push({event, data});
   }
 }
 
@@ -336,23 +328,14 @@ function setupGameEventListeners(): void {
     eventBus.emit('player:left', data);
   });
 
-  // Player moved event
+  // Basic player movement handler
   socket.on(EVENTS.MOVE, (data) => {
-    console.log('Received remote player movement:', data);
     // Make sure the data includes a playerId
     if (!data.playerId && data.id) {
-      data.playerId = data.id; // Use id as playerId if not provided
+      data.playerId = data.id;
     }
     
-    // Store the position data for reconnection purposes
-    if (data.playerId) {
-      lastKnownPositions[data.playerId] = {...data};
-    }
-    
-    // Add timestamp to track the most recent update
-    data.timestamp = Date.now();
-    
-    // Emit the event for player movement
+    // Just forward the event to the event bus
     eventBus.emit('remote:player:moved', data);
   });
 
