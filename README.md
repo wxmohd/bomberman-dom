@@ -47,7 +47,7 @@ bomberman-dom/
 
 1. Clone the repository
    ```bash
-   git clone https://learn.reboot01.com/git/wamohamed/bomberman-dom.git
+   git clone https://github.com/wxmohd/bomberman-dom.git
    cd bomberman-dom
    ```
 
