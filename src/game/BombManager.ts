@@ -72,7 +72,13 @@ export class BombManager {
     this.playerStats.set(ownerId, playerStats);
     
     // Emit event for bomb placement
-    eventBus.emit('bomb:placed', { ownerId, x, y });
+    const bombPlacedData = { ownerId, x, y };
+    console.log('Emitting bomb:placed event:', bombPlacedData);
+    eventBus.emit('bomb:placed', bombPlacedData);
+    
+    // Also dispatch a DOM event for better compatibility
+    const customEvent = new CustomEvent('bomb:placed', { detail: bombPlacedData });
+    window.dispatchEvent(customEvent);
     
     return true;
   }

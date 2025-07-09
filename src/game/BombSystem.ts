@@ -20,9 +20,6 @@ export class BombSystem {
     this.bombController = new BombController(this.bombManager);
     this.explosionHandler = new ExplosionHandler(gridSize);
     
-    // Add CSS styles for bombs and explosions
-    BombRenderer.addStyles();
-    
     // Listen for chain reaction events
     eventBus.on('bomb:chainReaction', this.handleChainReaction.bind(this));
   }

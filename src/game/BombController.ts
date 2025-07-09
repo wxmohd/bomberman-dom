@@ -102,6 +102,26 @@ export class BombController {
       // Set cooldown for this player
       this.bombCooldowns.set(playerId, currentTime);
       
+      // Debug log player position
+      console.log('Player position for bomb throw:', position);
+      console.log('Bomb grid position:', { gridX, gridY });
+      
+      // Emit bomb:thrown event with player and bomb positions
+      const eventData = {
+        ownerId: playerId,
+        playerX: position.x,
+        playerY: position.y,
+        bombX: gridX,
+        bombY: gridY
+      };
+      
+      console.log('Emitting bomb:thrown event with data:', eventData);
+      eventBus.emit('bomb:thrown', eventData);
+      
+      // Also emit a DOM event for testing
+      const customEvent = new CustomEvent('bomb:thrown', { detail: eventData });
+      window.dispatchEvent(customEvent);
+      
       // Play bomb placement sound
       this.playBombPlacementSound();
     }
