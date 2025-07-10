@@ -37,21 +37,28 @@ export function initChatUI(parentContainer: HTMLElement): void {
     class: 'chat-container',
     style: `
       position: fixed;
-      bottom: 80px;
+      bottom: 20px;
       right: 20px;
-      width: 320px;
+      width: 350px;
       height: 350px;
-      background-color: rgba(0, 0, 0, 0.85);
-      border-radius: 8px;
-      color: white;
+      background-color: rgba(74, 66, 51, 0.85);
+      border: 2px solid #d4af37;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(212, 175, 55, 0.2);
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
       z-index: 1000;
-      transition: all 0.3s ease;
-      display: none;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      font-family: 'Arial', sans-serif;
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
+      background-blend-mode: overlay;
+      position: relative;
+      border: 4px solid #d4af37;
+      border-top: 12px solid #d4af37;
+      border-bottom: 12px solid #d4af37;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(212, 175, 55, 0.2);
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
+      overflow: hidden;
+      position: relative;
     `
   }, []);
   
@@ -59,31 +66,40 @@ export function initChatUI(parentContainer: HTMLElement): void {
   chatContainer = render(chatContainerVNode) as HTMLElement;
   
   // Create chat title using the framework's h function
-  const chatTitleVNode = h('span', {
+  const chatTitleVNode = h('div', {
     style: `
       font-weight: bold;
-      font-size: 16px;
-      color: #4CAF50;
+      font-size: 18px;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      color: #d4af37;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     `
-  }, ['Game Chat']);
+  }, ['Pharaoh Chat']);
   
   // Create minimize button using the framework's h function
   const minimizeButtonVNode = h('button', {
     style: `
       background: none;
       border: none;
-      color: white;
+      color: #d4af37;
       cursor: pointer;
       font-size: 18px;
       padding: 0 5px;
-      transition: color 0.2s;
+      transition: all 0.2s ease;
     `,
     onclick: toggleMinimize,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.color = '#4CAF50';
+      (e.target as HTMLElement).style.color = '#e4c49b';
+      (e.target as HTMLElement).style.transform = 'scale(1.1)';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.color = 'white';
+      (e.target as HTMLElement).style.color = '#d4af37';
+      (e.target as HTMLElement).style.transform = 'scale(1)';
     }
   }, ['−']);
   
@@ -91,16 +107,17 @@ export function initChatUI(parentContainer: HTMLElement): void {
   const chatHeaderVNode = h('div', {
     class: 'chat-header',
     style: `
-      padding: 10px 15px;
-      background-color: rgba(0, 0, 0, 0.7);
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
+      padding: 12px 15px;
+      background-color: rgba(74, 66, 51, 0.95);
+      border-top: none;
       cursor: move;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 2px solid #d4af37;
       user-select: none;
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
+      background-blend-mode: overlay;
     `
   }, [chatTitleVNode, minimizeButtonVNode]);
   
@@ -116,9 +133,12 @@ export function initChatUI(parentContainer: HTMLElement): void {
       padding: 15px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       scrollbar-width: thin;
-      scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+      scrollbar-color: rgba(212, 175, 55, 0.5) transparent;
+      background-color: rgba(228, 196, 155, 0.2);
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus-light.png');
+      background-blend-mode: overlay;
     `
   }, []);
   
@@ -129,44 +149,142 @@ export function initChatUI(parentContainer: HTMLElement): void {
   const styleVNode = h('style', {}, [
     `
     .chat-messages::-webkit-scrollbar {
-      width: 6px;
+      width: 10px;
     }
     .chat-messages::-webkit-scrollbar-track {
-      background: transparent;
+      background: rgba(126, 112, 83, 0.2);
+      border-radius: 0;
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
+      background-blend-mode: overlay;
     }
     .chat-messages::-webkit-scrollbar-thumb {
-      background-color: rgba(255, 255, 255, 0.3);
-      border-radius: 3px;
+      background-color: rgba(212, 175, 55, 0.6);
+      border: 1px solid rgba(74, 66, 51, 0.3);
+      border-radius: 0;
+      background-image: linear-gradient(to bottom, 
+        transparent 0%, transparent 10%,
+        rgba(74, 66, 51, 0.5) 10%, rgba(74, 66, 51, 0.5) 20%,
+        transparent 20%, transparent 30%,
+        rgba(74, 66, 51, 0.5) 30%, rgba(74, 66, 51, 0.5) 40%,
+        transparent 40%, transparent 50%,
+        rgba(74, 66, 51, 0.5) 50%, rgba(74, 66, 51, 0.5) 60%,
+        transparent 60%, transparent 70%,
+        rgba(74, 66, 51, 0.5) 70%, rgba(74, 66, 51, 0.5) 80%,
+        transparent 80%, transparent 90%,
+        rgba(74, 66, 51, 0.5) 90%, rgba(74, 66, 51, 0.5) 100%);
+    }
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(212, 175, 55, 0.8);
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes glowPulse {
+      0% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
+      50% { box-shadow: 0 0 15px rgba(212, 175, 55, 0.8); }
+      100% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
+    }
+    .chat-message-system {
+      animation: fadeIn 0.3s ease-out, glowPulse 2s infinite;
+    }
     `
   ]);
   
-  // Render and append the style
+  // Add additional Egyptian-themed styles
+  const egyptianStyleVNode = h('style', {}, [
+    `
+    /* Egyptian-themed decorative elements */
+    .chat-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 12px;
+      background-image: linear-gradient(to right, 
+        #d4af37 0%, #d4af37 10%, 
+        transparent 10%, transparent 20%, 
+        #d4af37 20%, #d4af37 30%,
+        transparent 30%, transparent 40%,
+        #d4af37 40%, #d4af37 50%,
+        transparent 50%, transparent 60%,
+        #d4af37 60%, #d4af37 70%,
+        transparent 70%, transparent 80%,
+        #d4af37 80%, #d4af37 90%,
+        transparent 90%, transparent 100%);
+      z-index: 1;
+    }
+    
+    .chat-container::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 12px;
+      background-image: linear-gradient(to right, 
+        #d4af37 0%, #d4af37 10%, 
+        transparent 10%, transparent 20%, 
+        #d4af37 20%, #d4af37 30%,
+        transparent 30%, transparent 40%,
+        #d4af37 40%, #d4af37 50%,
+        transparent 50%, transparent 60%,
+        #d4af37 60%, #d4af37 70%,
+        transparent 70%, transparent 80%,
+        #d4af37 80%, #d4af37 90%,
+        transparent 90%, transparent 100%);
+      z-index: 1;
+    }
+    
+    /* Hieroglyphic-inspired decorative elements */
+    .chat-header::before {
+      content: '☥';
+      font-size: 18px;
+      color: #d4af37;
+      margin-right: 8px;
+      text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+    }
+    
+    .chat-header::after {
+      content: '☥';
+      font-size: 18px;
+      color: #d4af37;
+      margin-left: 8px;
+      text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+    }
+    `
+  ]);
+  
+  // Render and append the styles
   document.head.appendChild(render(styleVNode) as HTMLElement);
+  document.head.appendChild(render(egyptianStyleVNode) as HTMLElement);
   
   // Create chat input using the framework's h function
   const chatInputVNode = h('input', {
     type: 'text',
-    placeholder: 'Type a message...',
+    id: 'chat-input',
+    placeholder: 'Write your message on papyrus...',
     style: `
       flex: 1;
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      background-color: rgba(255, 255, 255, 0.9);
+      padding: 10px 12px;
+      border-radius: 0;
+      border: 1px solid #d4af37;
+      background-color: rgba(245, 231, 201, 0.9);
+      color: #4a4233;
       font-size: 14px;
-      transition: border-color 0.3s;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      transition: all 0.3s ease;
       outline: none;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
     `,
     onfocus: (e: Event) => {
-      (e.target as HTMLElement).style.borderColor = '#4CAF50';
+      (e.target as HTMLElement).style.borderColor = '#d4af37';
+      (e.target as HTMLElement).style.boxShadow = '0 0 5px rgba(212, 175, 55, 0.5), inset 0 1px 3px rgba(0, 0, 0, 0.1)';
     },
     onblur: (e: Event) => {
-      (e.target as HTMLElement).style.borderColor = 'rgba(255, 255, 255, 0.2)';
+      (e.target as HTMLElement).style.borderColor = '#d4af37';
+      (e.target as HTMLElement).style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.1)';
     },
     onkeydown: handleInputKeydown
   }, []);
@@ -175,21 +293,29 @@ export function initChatUI(parentContainer: HTMLElement): void {
   const sendButtonVNode = h('button', {
     style: `
       margin-left: 8px;
-      padding: 8px 15px;
-      border: none;
-      border-radius: 4px;
-      background-color: #4CAF50;
-      color: white;
+      padding: 10px 15px;
+      border: 2px solid #d4af37;
+      border-radius: 0;
+      background-color: rgba(74, 66, 51, 0.9);
+      color: #d4af37;
       cursor: pointer;
       font-weight: bold;
-      transition: background-color 0.3s, transform 0.2s;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     `,
     onclick: handleSendClick,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = '#3e8e41';
+      (e.target as HTMLElement).style.backgroundColor = 'rgba(212, 175, 55, 0.9)';
+      (e.target as HTMLElement).style.color = '#4a4233';
+      (e.target as HTMLElement).style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = '#4CAF50';
+      (e.target as HTMLElement).style.backgroundColor = 'rgba(74, 66, 51, 0.9)';
+      (e.target as HTMLElement).style.color = '#d4af37';
+      (e.target as HTMLElement).style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.2)';
     },
     onmousedown: (e: Event) => {
       (e.target as HTMLElement).style.transform = 'scale(0.95)';
@@ -234,24 +360,30 @@ export function initChatUI(parentContainer: HTMLElement): void {
       top: 10px !important;
       right: 10px !important;
       padding: 8px 15px !important;
-      background-color: #4CAF50 !important;
-      color: white !important;
-      border: none !important;
-      border-radius: 4px !important;
+      background-color: rgba(74, 66, 51, 0.9) !important;
+      color: #d4af37 !important;
+      border: 2px solid #d4af37 !important;
+      border-radius: 0 !important;
       cursor: pointer !important;
       font-weight: bold !important;
+      font-family: 'Papyrus', 'Copperplate', fantasy !important;
+      text-transform: uppercase !important;
+      letter-spacing: 1px !important;
       z-index: 9999 !important;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
-      transition: background-color 0.3s !important;
+      transition: all 0.3s ease !important;
       display: none !important; /* Hidden by default, will be shown after joining lobby */
-      font-family: Arial, sans-serif !important;
       font-size: 14px !important;
     `,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = '#3e8e41';
+      (e.target as HTMLElement).style.backgroundColor = 'rgba(212, 175, 55, 0.9)';
+      (e.target as HTMLElement).style.color = '#4a4233';
+      (e.target as HTMLElement).style.boxShadow = '0 0 10px rgba(212, 175, 55, 0.7)';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = '#4CAF50';
+      (e.target as HTMLElement).style.backgroundColor = 'rgba(74, 66, 51, 0.9)';
+      (e.target as HTMLElement).style.color = '#d4af37';
+      (e.target as HTMLElement).style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.3)';
     },
     onmousedown: (e: Event) => {
       (e.target as HTMLElement).style.transform = 'scale(0.95)';
