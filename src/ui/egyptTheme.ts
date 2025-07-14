@@ -448,9 +448,9 @@ function applyEgyptianChatTheme(): void {
       headerTitle.style.cssText = `
         font-weight: bold;
         font-size: 18px;
-        font-family: 'Papyrus', 'Copperplate', fantasy;
         color: #d4af37;
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy;
         letter-spacing: 2px;
         text-transform: uppercase;
         display: flex;
@@ -458,6 +458,22 @@ function applyEgyptianChatTheme(): void {
         justify-content: center;
       `;
     }
+    
+    // Style the chat header background
+    chatHeader.style.cssText = `
+      background: linear-gradient(to right, #4a4233, #5a5243, #4a4233);
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
+      background-blend-mode: overlay;
+      border-bottom: 2px solid #d4af37;
+      border-radius: 8px 8px 0 0;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
     
     // Style the minimize button
     if (minimizeButton) {
@@ -559,21 +575,24 @@ function applyEgyptianChatTheme(): void {
   if (chatInput) {
     (chatInput as HTMLElement).setAttribute('style', `
       flex: 1;
-      padding: 8px 12px;
-      border: 2px solid rgba(212, 175, 55, 0.5);
+      padding: 10px 15px;
+      border: 2px solid #d4af37;
       border-radius: 4px;
-      background-color: rgba(74, 66, 51, 0.6);
-      color: #f5e7c1;
+      background-color: rgba(74, 66, 51, 0.8);
+      color: #d4af37;
       outline: none;
       transition: all 0.3s ease;
-      font-family: 'Papyrus', 'Copperplate', fantasy;
-      margin-right: 8px;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+      font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy;
+      margin-right: 10px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+      font-size: 16px;
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
+      background-blend-mode: overlay;
     `);
     
     // Update placeholder
     if (chatInput instanceof HTMLInputElement) {
-      chatInput.placeholder = 'Write on papyrus... ✍';
+      chatInput.placeholder = 'Inscribe your hieroglyphs... ☥';
     }
     
     // Add focus and blur effects
@@ -594,27 +613,33 @@ function applyEgyptianChatTheme(): void {
   if (chatInputContainer) {
     (chatInputContainer as HTMLElement).setAttribute('style', `
       display: flex;
-      padding: 10px;
+      padding: 12px;
       background: linear-gradient(to bottom, #4a4233, #5c5243);
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
+      background-blend-mode: overlay;
       border-top: 2px solid #d4af37;
       border-bottom-left-radius: 8px;
       border-bottom-right-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     `);
   }
   
   // Apply Egyptian styling to send button
   if (sendButton) {
     (sendButton as HTMLElement).setAttribute('style', `
-      padding: 8px 16px;
+      padding: 10px 18px;
       background: linear-gradient(to bottom, #d4af37, #b38728);
       color: #4a4233;
-      border: 1px solid #8B7513;
-      border-radius: 20px;
+      border: 2px solid #8B7513;
+      border-radius: 8px;
       cursor: pointer;
-      font-family: 'Papyrus', 'Copperplate', fantasy;
+      font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy;
       font-weight: bold;
       transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
+      position: relative;
+      overflow: hidden;
     `);
     
     // Update button text

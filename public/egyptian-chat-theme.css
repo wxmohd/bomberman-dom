@@ -27,7 +27,6 @@
   background-color: rgba(74, 66, 51, 0.95) !important;
   border: 2px solid var(--egypt-gold) !important;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(212, 175, 55, 0.3) !important;
-  background-image: url('https://www.transparenttextures.com/patterns/papyrus.png') !important;
   background-blend-mode: overlay !important;
   border-radius: 10px !important;
   transition: box-shadow 0.3s ease, opacity 0.2s ease !important;
@@ -54,11 +53,11 @@
   user-select: none !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
   position: relative !important;
+  background-blend-mode: overlay !important;
 }
 
 /* Add grip pattern to indicate draggable */
 .chat-header::before {
-  content: '\2261' !important;
   position: absolute !important;
   left: 10px !important;
   top: 50% !important;
@@ -88,7 +87,6 @@
 /* Chat messages container */
 .chat-messages {
   background-color: rgba(74, 66, 51, 0.4) !important;
-  background-image: url('https://www.transparenttextures.com/patterns/papyrus.png') !important;
   background-blend-mode: overlay !important;
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2) !important;
 }
@@ -150,29 +148,85 @@
 
 /* Chat input styling */
 .chat-input {
-  border: 1px solid rgba(212, 175, 55, 0.5) !important;
-  background-color: rgba(74, 66, 51, 0.6) !important;
-  color: #fff !important;
+  border: 2px solid var(--egypt-gold) !important;
+  background-color: rgba(74, 66, 51, 0.8) !important;
+  color: #f5e7c1 !important; /* Lighter gold for better visibility */
   font-family: 'Marcellus', 'Papyrus', 'Copperplate', fantasy !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 4px !important;
 }
 
 .chat-input::placeholder {
-  color: rgba(212, 175, 55, 0.5) !important;
+  color: rgba(212, 175, 55, 0.7) !important;
   font-style: italic !important;
+  font-family: 'Marcellus', 'Papyrus', 'Copperplate', fantasy !important;
 }
 
 /* Send button styling */
-.chat-send-button {
-  background: linear-gradient(to bottom, var(--egypt-gold), #b38728) !important;
-  color: var(--egypt-dark-stone) !important;
-  border-radius: 20px !important;
+.chat-send-button,
+button[class*="send"],
+.chat-container button {
+  background: linear-gradient(to bottom, #f5e7c1, var(--egypt-gold)) !important;
+  color: #3a3225 !important; /* Darker font color to match Start Game button */
+  border-radius: 8px !important;
   font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 8px rgba(212, 175, 55, 0.4) !important;
+  border: 2px solid #8B7513 !important;
+  font-weight: bold !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+  padding: 8px 16px !important;
+  transition: all 0.3s ease !important;
 }
 
-.chat-send-button:hover {
-  background: linear-gradient(to bottom, #e5c04d, #c49a38) !important;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
+/* Target all buttons in the chat container */
+.chat-container button,
+button.chat-send-button,
+button[type="submit"] {
+  background: linear-gradient(to bottom, #f5e7c1, var(--egypt-gold)) !important;
+  color: #3a3225 !important; /* Darker font color to match Start Game button */
+  border-radius: 8px !important;
+  font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 8px rgba(212, 175, 55, 0.4) !important;
+  border: 2px solid #8B7513 !important;
+  font-weight: bold !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Start Game button styling */
+button.start-game,
+.start-game,
+button[class*="start"],
+div.lobby button {
+  background: linear-gradient(to bottom, #f5e7c1, var(--egypt-gold)) !important;
+  color: var(--egypt-dark-stone) !important;
+  border-radius: 8px !important;
+  font-family: 'Cinzel Decorative', 'Papyrus', 'Copperplate', fantasy !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 8px rgba(212, 175, 55, 0.4) !important;
+  border: 2px solid #8B7513 !important;
+  font-weight: bold !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+  padding: 10px 20px !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Start Game button hover effect */
+button.start-game:hover,
+.start-game:hover,
+button[class*="start"]:hover,
+div.lobby button:hover {
+  background: linear-gradient(to bottom, #f5e7c1, #e5c04d) !important;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.8) !important;
+  transform: translateY(-2px) !important;
+  cursor: pointer !important;
+}
+
+.chat-send-button:hover,
+button[class*="send"]:hover,
+.chat-container button:hover {
+  background: linear-gradient(to bottom, #f5e7c1, #e5c04d) !important;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.8) !important;
+  transform: translateY(-2px) !important;
+  cursor: pointer !important;
 }
 
 /* Chat toggle button styling */
@@ -193,7 +247,6 @@
 
 /* Hieroglyphic decoration for messages */
 .chat-message::after {
-  content: '☥';
   position: absolute;
   bottom: 3px;
   right: 5px;
