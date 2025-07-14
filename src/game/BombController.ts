@@ -36,7 +36,7 @@ export class BombController {
   private setupKeyboardListeners(): void {
     // Map of player IDs to their bomb placement keys
     const playerBombKeys: Record<string, string> = {
-      'player1': ' ',     // Space bar for player 1
+      'player1': 'a',     // A key for player 1
       'player2': 'Enter', // Enter for player 2
       'player3': 'r',     // R key for player 3
       'player4': '0'      // 0 key for player 4 (numpad)

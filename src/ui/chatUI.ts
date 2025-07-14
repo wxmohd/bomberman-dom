@@ -24,7 +24,16 @@ export function initChatUI(parentContainer: HTMLElement): void {
     return;
   }
   
-  // Mark as initialized
+  // Check if we're on the login screen by looking for the nickname input
+  const nicknameInput = document.querySelector('input[placeholder="Enter your nickname"]');
+  
+  // Don't initialize chat UI on login screen
+  if (nicknameInput) {
+    console.log('On login screen, not initializing chat UI');
+    return;
+  }
+  
+  // Mark as initialized only if we're not on the login screen
   isInitialized = true;
   // Initialize chat logic with player nickname
   // This should be called after player has set their nickname
@@ -41,24 +50,18 @@ export function initChatUI(parentContainer: HTMLElement): void {
       right: 20px;
       width: 350px;
       height: 350px;
-      background-color: rgba(74, 66, 51, 0.85);
-      border: 2px solid #d4af37;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(212, 175, 55, 0.2);
+      background-color: rgba(74, 66, 51, 0.9);
+      border: 3px solid #d4af37;
+      border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(212, 175, 55, 0.3);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      transition: all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+      transition: all 0.3s ease;
       z-index: 1000;
       background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
       background-blend-mode: overlay;
-      position: relative;
-      border: 4px solid #d4af37;
-      border-top: 12px solid #d4af37;
-      border-bottom: 12px solid #d4af37;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(212, 175, 55, 0.2);
-      background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
-      overflow: hidden;
-      position: relative;
+      display: none;
     `
   }, []);
   
@@ -72,54 +75,87 @@ export function initChatUI(parentContainer: HTMLElement): void {
       font-size: 18px;
       font-family: 'Papyrus', 'Copperplate', fantasy;
       color: #d4af37;
-      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
       letter-spacing: 2px;
       text-transform: uppercase;
       display: flex;
       align-items: center;
       justify-content: center;
     `
-  }, ['Pharaoh Chat']);
+  }, ['☥ GAME CHAT ☥']);
   
   // Create minimize button using the framework's h function
   const minimizeButtonVNode = h('button', {
     style: `
       background: none;
-      border: none;
+      border: 2px solid #d4af37;
+      border-radius: 4px;
       color: #d4af37;
       cursor: pointer;
-      font-size: 18px;
-      padding: 0 5px;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
       transition: all 0.2s ease;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+      margin-left: 10px;
     `,
     onclick: toggleMinimize,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.color = '#e4c49b';
-      (e.target as HTMLElement).style.transform = 'scale(1.1)';
+      const el = e.target as HTMLElement;
+      el.style.color = '#f5e7c1';
+      el.style.borderColor = '#f5e7c1';
+      el.style.boxShadow = '0 0 5px rgba(212, 175, 55, 0.5)';
+      el.style.animation = 'glowPulse 1.5s infinite';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.color = '#d4af37';
-      (e.target as HTMLElement).style.transform = 'scale(1)';
+      const el = e.target as HTMLElement;
+      el.style.color = '#d4af37';
+      el.style.borderColor = '#d4af37';
+      el.style.boxShadow = 'none';
+      el.style.animation = 'none';
     }
   }, ['−']);
   
-  // Create chat header using the framework's h function with the title and minimize button
+  // Create chat header using the framework's h function
   const chatHeaderVNode = h('div', {
     class: 'chat-header',
     style: `
-      padding: 12px 15px;
-      background-color: rgba(74, 66, 51, 0.95);
-      border-top: none;
+      padding: 10px 15px;
+      background: linear-gradient(to right, #4a4233, #5c5243, #4a4233);
       cursor: move;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 2px solid #d4af37;
       user-select: none;
+      position: relative;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
       background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
       background-blend-mode: overlay;
     `
-  }, [chatTitleVNode, minimizeButtonVNode]);
+  }, [
+    // Add grip icon for visual dragging cue
+    h('div', {
+      style: `
+        font-size: 22px;
+        color: #d4af37;
+        margin-right: 10px;
+        display: flex;
+        align-items: center;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        animation: glowPulse 3s infinite;
+      `
+    }, ['☥']),
+    chatTitleVNode,
+    minimizeButtonVNode
+  ]);
   
   // Render the chat header
   const chatHeader = render(chatHeaderVNode) as HTMLElement;
@@ -130,15 +166,16 @@ export function initChatUI(parentContainer: HTMLElement): void {
     style: `
       flex: 1;
       overflow-y: auto;
-      padding: 15px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(212, 175, 55, 0.5) transparent;
-      background-color: rgba(228, 196, 155, 0.2);
-      background-image: url('https://www.transparenttextures.com/patterns/papyrus-light.png');
+      background-color: rgba(74, 66, 51, 0.4);
+      background-image: url('https://www.transparenttextures.com/patterns/papyrus.png');
       background-blend-mode: overlay;
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+      border-left: 1px solid rgba(212, 175, 55, 0.3);
+      border-right: 1px solid rgba(212, 175, 55, 0.3);
     `
   }, []);
   
@@ -149,173 +186,89 @@ export function initChatUI(parentContainer: HTMLElement): void {
   const styleVNode = h('style', {}, [
     `
     .chat-messages::-webkit-scrollbar {
-      width: 10px;
+      width: 8px;
     }
     .chat-messages::-webkit-scrollbar-track {
-      background: rgba(126, 112, 83, 0.2);
-      border-radius: 0;
-      background-image: url('https://www.transparenttextures.com/patterns/papyrus-dark.png');
-      background-blend-mode: overlay;
+      background: rgba(74, 66, 51, 0.3);
+      border-radius: 4px;
     }
     .chat-messages::-webkit-scrollbar-thumb {
-      background-color: rgba(212, 175, 55, 0.6);
-      border: 1px solid rgba(74, 66, 51, 0.3);
-      border-radius: 0;
-      background-image: linear-gradient(to bottom, 
-        transparent 0%, transparent 10%,
-        rgba(74, 66, 51, 0.5) 10%, rgba(74, 66, 51, 0.5) 20%,
-        transparent 20%, transparent 30%,
-        rgba(74, 66, 51, 0.5) 30%, rgba(74, 66, 51, 0.5) 40%,
-        transparent 40%, transparent 50%,
-        rgba(74, 66, 51, 0.5) 50%, rgba(74, 66, 51, 0.5) 60%,
-        transparent 60%, transparent 70%,
-        rgba(74, 66, 51, 0.5) 70%, rgba(74, 66, 51, 0.5) 80%,
-        transparent 80%, transparent 90%,
-        rgba(74, 66, 51, 0.5) 90%, rgba(74, 66, 51, 0.5) 100%);
+      background: linear-gradient(to bottom, #d4af37, #b38728);
+      border-radius: 4px;
+      border: 1px solid #8B7513;
     }
     .chat-messages::-webkit-scrollbar-thumb:hover {
-      background-color: rgba(212, 175, 55, 0.8);
+      background: linear-gradient(to bottom, #f5e7c1, #d4af37);
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @keyframes glowPulse {
-      0% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
-      50% { box-shadow: 0 0 15px rgba(212, 175, 55, 0.8); }
-      100% { box-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
-    }
-    .chat-message-system {
-      animation: fadeIn 0.3s ease-out, glowPulse 2s infinite;
+      0% { text-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
+      50% { text-shadow: 0 0 15px rgba(212, 175, 55, 0.8); }
+      100% { text-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
     }
     `
   ]);
   
-  // Add additional Egyptian-themed styles
-  const egyptianStyleVNode = h('style', {}, [
-    `
-    /* Egyptian-themed decorative elements */
-    .chat-container::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 12px;
-      background-image: linear-gradient(to right, 
-        #d4af37 0%, #d4af37 10%, 
-        transparent 10%, transparent 20%, 
-        #d4af37 20%, #d4af37 30%,
-        transparent 30%, transparent 40%,
-        #d4af37 40%, #d4af37 50%,
-        transparent 50%, transparent 60%,
-        #d4af37 60%, #d4af37 70%,
-        transparent 70%, transparent 80%,
-        #d4af37 80%, #d4af37 90%,
-        transparent 90%, transparent 100%);
-      z-index: 1;
-    }
-    
-    .chat-container::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 12px;
-      background-image: linear-gradient(to right, 
-        #d4af37 0%, #d4af37 10%, 
-        transparent 10%, transparent 20%, 
-        #d4af37 20%, #d4af37 30%,
-        transparent 30%, transparent 40%,
-        #d4af37 40%, #d4af37 50%,
-        transparent 50%, transparent 60%,
-        #d4af37 60%, #d4af37 70%,
-        transparent 70%, transparent 80%,
-        #d4af37 80%, #d4af37 90%,
-        transparent 90%, transparent 100%);
-      z-index: 1;
-    }
-    
-    /* Hieroglyphic-inspired decorative elements */
-    .chat-header::before {
-      content: '☥';
-      font-size: 18px;
-      color: #d4af37;
-      margin-right: 8px;
-      text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
-    }
-    
-    .chat-header::after {
-      content: '☥';
-      font-size: 18px;
-      color: #d4af37;
-      margin-left: 8px;
-      text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
-    }
-    `
-  ]);
-  
-  // Render and append the styles
+  // Render and append the style
   document.head.appendChild(render(styleVNode) as HTMLElement);
-  document.head.appendChild(render(egyptianStyleVNode) as HTMLElement);
   
   // Create chat input using the framework's h function
   const chatInputVNode = h('input', {
+    class: 'chat-input',
     type: 'text',
-    id: 'chat-input',
-    placeholder: 'Write your message on papyrus...',
+    placeholder: 'Write on papyrus... ✍',
     style: `
       flex: 1;
-      padding: 10px 12px;
-      border-radius: 0;
-      border: 1px solid #d4af37;
-      background-color: rgba(245, 231, 201, 0.9);
-      color: #4a4233;
-      font-size: 14px;
-      font-family: 'Papyrus', 'Copperplate', fantasy;
-      transition: all 0.3s ease;
+      padding: 8px 12px;
+      border: 2px solid rgba(212, 175, 55, 0.5);
+      border-radius: 4px;
+      background-color: rgba(74, 66, 51, 0.6);
+      color: #f5e7c1;
       outline: none;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      margin-right: 8px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
     `,
     onfocus: (e: Event) => {
       (e.target as HTMLElement).style.borderColor = '#d4af37';
-      (e.target as HTMLElement).style.boxShadow = '0 0 5px rgba(212, 175, 55, 0.5), inset 0 1px 3px rgba(0, 0, 0, 0.1)';
+      (e.target as HTMLElement).style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 8px rgba(212, 175, 55, 0.6)';
     },
     onblur: (e: Event) => {
-      (e.target as HTMLElement).style.borderColor = '#d4af37';
-      (e.target as HTMLElement).style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.1)';
+      (e.target as HTMLElement).style.borderColor = 'rgba(212, 175, 55, 0.5)';
+      (e.target as HTMLElement).style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.2)';
     },
     onkeydown: handleInputKeydown
   }, []);
   
   // Create send button using the framework's h function
   const sendButtonVNode = h('button', {
+    class: 'chat-send-button',
     style: `
-      margin-left: 8px;
-      padding: 10px 15px;
-      border: 2px solid #d4af37;
-      border-radius: 0;
-      background-color: rgba(74, 66, 51, 0.9);
-      color: #d4af37;
+      padding: 8px 16px;
+      background: linear-gradient(to bottom, #d4af37, #b38728);
+      color: #4a4233;
+      border: 1px solid #8B7513;
+      border-radius: 20px;
       cursor: pointer;
-      font-weight: bold;
       font-family: 'Papyrus', 'Copperplate', fantasy;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      font-weight: bold;
       transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     `,
     onclick: handleSendClick,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = 'rgba(212, 175, 55, 0.9)';
-      (e.target as HTMLElement).style.color = '#4a4233';
-      (e.target as HTMLElement).style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+      const el = e.target as HTMLElement;
+      el.style.background = 'linear-gradient(to bottom, #f5e7c1, #d4af37)';
+      el.style.boxShadow = '0 0 8px rgba(212, 175, 55, 0.6)';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = 'rgba(74, 66, 51, 0.9)';
-      (e.target as HTMLElement).style.color = '#d4af37';
-      (e.target as HTMLElement).style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.2)';
+      const el = e.target as HTMLElement;
+      el.style.background = 'linear-gradient(to bottom, #d4af37, #b38728)';
+      el.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
     },
     onmousedown: (e: Event) => {
       (e.target as HTMLElement).style.transform = 'scale(0.95)';
@@ -323,23 +276,23 @@ export function initChatUI(parentContainer: HTMLElement): void {
     onmouseup: (e: Event) => {
       (e.target as HTMLElement).style.transform = 'scale(1)';
     }
-  }, ['Send']);
+  }, ['Send ☥']);
   
-  // Create input container using the framework's h function
-  const inputContainerVNode = h('div', {
+  // Create chat input container using the framework's h function
+  const chatInputContainerVNode = h('div', {
     class: 'chat-input-container',
     style: `
       display: flex;
-      padding: 12px;
-      background-color: rgba(0, 0, 0, 0.6);
+      padding: 10px;
+      background: linear-gradient(to bottom, #4a4233, #5c5243);
+      border-top: 2px solid #d4af37;
       border-bottom-left-radius: 8px;
       border-bottom-right-radius: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
     `
   }, [chatInputVNode, sendButtonVNode]);
   
   // Render the input container
-  const inputContainer = render(inputContainerVNode) as HTMLElement;
+  const inputContainer = render(chatInputContainerVNode) as HTMLElement;
   
   // Store reference to the rendered chat input
   chatInput = inputContainer.querySelector('input') as HTMLInputElement;
@@ -351,6 +304,7 @@ export function initChatUI(parentContainer: HTMLElement): void {
     existingButton.remove();
   }
   
+  // Only create chat toggle button if not on login screen
   // Create chat toggle button using the framework's h function
   const chatToggleButtonVNode = h('button', {
     class: 'chat-toggle',
@@ -360,30 +314,30 @@ export function initChatUI(parentContainer: HTMLElement): void {
       top: 10px !important;
       right: 10px !important;
       padding: 8px 15px !important;
-      background-color: rgba(74, 66, 51, 0.9) !important;
-      color: #d4af37 !important;
-      border: 2px solid #d4af37 !important;
-      border-radius: 0 !important;
+      background: linear-gradient(to bottom, #d4af37, #b38728) !important;
+      color: #4a4233 !important;
+      border: 2px solid #8B7513 !important;
+      border-radius: 20px !important;
       cursor: pointer !important;
       font-weight: bold !important;
-      font-family: 'Papyrus', 'Copperplate', fantasy !important;
-      text-transform: uppercase !important;
-      letter-spacing: 1px !important;
       z-index: 9999 !important;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
       transition: all 0.3s ease !important;
       display: none !important; /* Hidden by default, will be shown after joining lobby */
+      font-family: 'Papyrus', 'Copperplate', fantasy !important;
       font-size: 14px !important;
+      text-transform: uppercase !important;
+      letter-spacing: 1px !important;
     `,
     onmouseover: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = 'rgba(212, 175, 55, 0.9)';
-      (e.target as HTMLElement).style.color = '#4a4233';
-      (e.target as HTMLElement).style.boxShadow = '0 0 10px rgba(212, 175, 55, 0.7)';
+      const el = e.target as HTMLElement;
+      el.style.background = 'linear-gradient(to bottom, #f5e7c1, #d4af37)';
+      el.style.boxShadow = '0 0 10px rgba(212, 175, 55, 0.5)';
     },
     onmouseout: (e: Event) => {
-      (e.target as HTMLElement).style.backgroundColor = 'rgba(74, 66, 51, 0.9)';
-      (e.target as HTMLElement).style.color = '#d4af37';
-      (e.target as HTMLElement).style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.3)';
+      const el = e.target as HTMLElement;
+      el.style.background = 'linear-gradient(to bottom, #d4af37, #b38728)';
+      el.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.3)';
     },
     onmousedown: (e: Event) => {
       (e.target as HTMLElement).style.transform = 'scale(0.95)';
@@ -392,7 +346,7 @@ export function initChatUI(parentContainer: HTMLElement): void {
       (e.target as HTMLElement).style.transform = 'scale(1)';
     },
     onclick: toggleChat
-  }, ['Chat']);
+  }, ['☥ Chat']);
   
   // Render the chat toggle button
   chatToggleButton = render(chatToggleButtonVNode) as HTMLElement;
@@ -422,13 +376,18 @@ export function initChatUI(parentContainer: HTMLElement): void {
   });
   
   // Make chat draggable
-  makeDraggable(chatContainer, chatHeader);
+  if (chatContainer && chatHeader) {
+    makeDraggable(chatContainer, chatHeader);
+  }
   
   // Load chat history
   loadChatHistory();
   
   // Add a welcome message
-  addSystemMessage('Welcome to Bomberman Chat! 💬');
+  addSystemMessage('Welcome to Bomberman Chat! ☥ May the gods favor your battles! ☥');
+  
+  // Apply Egyptian theme to chat UI
+  eventBus.emit('chat:initialized');
 }
 
 // Handle input keydown event (submit on Enter)
@@ -459,9 +418,12 @@ export function toggleChat(): void {
   
   isChatVisible = !isChatVisible;
   
+  // Emit chat toggled event for theme application
+  eventBus.emit('chat:toggled', { visible: isChatVisible });
+  
   if (isChatVisible) {
     chatContainer.style.display = 'flex';
-    chatToggleButton.textContent = 'Hide Chat';
+    chatToggleButton.textContent = '☥ Hide Chat';
     
     // Scroll to bottom of messages
     if (messagesContainer) {
@@ -474,7 +436,7 @@ export function toggleChat(): void {
     }
   } else {
     chatContainer.style.display = 'none';
-    chatToggleButton.textContent = 'Chat';
+    chatToggleButton.textContent = '☥ Chat';
   }
 }
 
@@ -528,14 +490,17 @@ function addMessageToUI(message: ChatEventData): void {
   const headerVNode = h('div', {
     style: `
       font-weight: bold;
-      color: ${isSystem ? '#ffcc00' : isLocalUser ? '#4CAF50' : '#64B5F6'};
-      margin-bottom: 3px;
+      color: ${isSystem ? '#d4af37' : isLocalUser ? '#d4af37' : '#d4af37'};
+      margin-bottom: 5px;
       text-align: ${isLocalUser ? 'right' : 'left'};
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+      letter-spacing: 1px;
     `
   }, [
     playerLabel,
     h('span', {
-      style: 'color: #aaa; font-size: 0.8em; margin-left: 5px; font-weight: normal;'
+      style: 'color: rgba(212, 175, 55, 0.7); font-size: 0.8em; margin-left: 8px; font-weight: normal; font-style: italic;'
     }, [timestamp])
   ]);
   
@@ -544,6 +509,9 @@ function addMessageToUI(message: ChatEventData): void {
     style: `
       color: #fff;
       text-align: ${isLocalUser ? 'right' : 'left'};
+      font-family: 'Papyrus', 'Copperplate', fantasy;
+      line-height: 1.4;
+      letter-spacing: 0.5px;
     `
   }, [message.message]);
   
@@ -551,9 +519,9 @@ function addMessageToUI(message: ChatEventData): void {
   const messageVNode = h('div', {
     class: 'chat-message',
     style: `
-      background-color: ${isSystem ? 'rgba(255, 204, 0, 0.2)' : isLocalUser ? 'rgba(76, 175, 80, 0.2)' : 'rgba(100, 181, 246, 0.2)'};
-      padding: 8px 12px;
-      border-radius: 6px;
+      background-color: ${isSystem ? 'rgba(212, 175, 55, 0.25)' : isLocalUser ? 'rgba(74, 66, 51, 0.6)' : 'rgba(74, 66, 51, 0.4)'};
+      padding: 10px 15px;
+      border-radius: 8px;
       word-break: break-word;
       max-width: 85%;
       align-self: ${isLocalUser ? 'flex-end' : 'flex-start'};
@@ -561,6 +529,10 @@ function addMessageToUI(message: ChatEventData): void {
       margin-right: ${isLocalUser ? '0' : 'auto'};
       position: relative;
       animation: fadeIn 0.3s ease;
+      border: 1px solid ${isSystem ? '#d4af37' : isLocalUser ? 'rgba(212, 175, 55, 0.5)' : 'rgba(212, 175, 55, 0.3)'};
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
     `
   }, [headerVNode, contentVNode]);
   
@@ -586,88 +558,85 @@ function loadChatHistory(): void {
 
 // Make an element draggable with smooth movement
 function makeDraggable(element: HTMLElement, handle: HTMLElement): void {
-  let isDragging = false;
-  let initialX: number, initialY: number;
-  let offsetX = 0, offsetY = 0;
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
   
-  handle.addEventListener('mousedown', startDrag);
-  handle.addEventListener('touchstart', startDrag, { passive: false });
+  // Set cursor style to indicate draggable
+  handle.style.cursor = 'move';
   
-  function startDrag(e: MouseEvent | TouchEvent): void {
+  handle.onmousedown = dragMouseDown;
+  handle.ontouchstart = dragTouchDown;
+  
+  function dragMouseDown(e: MouseEvent) {
     e.preventDefault();
-    isDragging = true;
+    // Get the mouse cursor position at startup
+    pos3 = e.clientX;
+    pos4 = e.clientY;
     
-    if (e instanceof MouseEvent) {
-      initialX = e.clientX;
-      initialY = e.clientY;
-    } else {
-      initialX = e.touches[0].clientX;
-      initialY = e.touches[0].clientY;
-    }
+    // Add dragging class for visual feedback
+    element.classList.add('dragging');
     
-    offsetX = element.offsetLeft;
-    offsetY = element.offsetTop;
-    
-    // Add smooth transition during drag
+    // Stop transitions during drag for smoother movement
     element.style.transition = 'none';
     
-    document.addEventListener('mousemove', drag);
-    document.addEventListener('touchmove', drag, { passive: false });
-    document.addEventListener('mouseup', stopDrag);
-    document.addEventListener('touchend', stopDrag);
-    
-    // Add a class to indicate dragging
-    element.classList.add('dragging');
+    document.onmouseup = closeDragElement;
+    document.onmousemove = elementDrag;
   }
   
-  function drag(e: MouseEvent | TouchEvent): void {
-    if (!isDragging) return;
+  function dragTouchDown(e: TouchEvent) {
     e.preventDefault();
+    // Get the touch position at startup
+    pos3 = e.touches[0].clientX;
+    pos4 = e.touches[0].clientY;
     
-    let currentX: number, currentY: number;
+    // Add dragging class for visual feedback
+    element.classList.add('dragging');
     
-    if (e instanceof MouseEvent) {
-      currentX = e.clientX;
-      currentY = e.clientY;
-    } else {
-      currentX = e.touches[0].clientX;
-      currentY = e.touches[0].clientY;
-    }
+    // Stop transitions during drag for smoother movement
+    element.style.transition = 'none';
     
-    const deltaX = currentX - initialX;
-    const deltaY = currentY - initialY;
-    
-    // Update position with transform for smoother movement
-    element.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    document.ontouchend = closeDragElement;
+    document.ontouchmove = elementTouchDrag;
   }
   
-  function stopDrag(): void {
-    if (!isDragging) return;
+  function elementDrag(e: MouseEvent) {
+    e.preventDefault();
+    // Calculate the new cursor position
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
     
-    isDragging = false;
-    
-    // Get computed transform values
-    const style = window.getComputedStyle(element);
-    const transform = style.getPropertyValue('transform');
-    const matrix = new DOMMatrix(transform);
-    
-    // Update position and reset transform
-    const newLeft = offsetX + matrix.m41;
-    const newTop = offsetY + matrix.m42;
-    
-    element.style.left = `${newLeft}px`;
-    element.style.top = `${newTop}px`;
-    element.style.transform = 'none';
+    // Set the element's new position
+    element.style.top = (element.offsetTop - pos2) + 'px';
+    element.style.left = (element.offsetLeft - pos1) + 'px';
     element.style.right = 'auto';
     element.style.bottom = 'auto';
+  }
+  
+  function elementTouchDrag(e: TouchEvent) {
+    e.preventDefault();
+    // Calculate the new touch position
+    pos1 = pos3 - e.touches[0].clientX;
+    pos2 = pos4 - e.touches[0].clientY;
+    pos3 = e.touches[0].clientX;
+    pos4 = e.touches[0].clientY;
+    
+    // Set the element's new position
+    element.style.top = (element.offsetTop - pos2) + 'px';
+    element.style.left = (element.offsetLeft - pos1) + 'px';
+    element.style.right = 'auto';
+    element.style.bottom = 'auto';
+  }
+  
+  function closeDragElement() {
+    // Stop moving when mouse/touch is released
+    document.onmouseup = null;
+    document.onmousemove = null;
+    document.ontouchend = null;
+    document.ontouchmove = null;
     
     // Restore transition
     element.style.transition = 'height 0.3s ease';
-    
-    document.removeEventListener('mousemove', drag);
-    document.removeEventListener('touchmove', drag);
-    document.removeEventListener('mouseup', stopDrag);
-    document.removeEventListener('touchend', stopDrag);
     
     // Remove dragging class
     element.classList.remove('dragging');

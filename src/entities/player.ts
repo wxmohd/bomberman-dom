@@ -788,8 +788,8 @@ export class Player {
       const currentTime = performance.now();
       pressedKeys[event.key] = currentTime;
       
-      // Handle spacebar for bomb placement separately
-      if (event.key === ' ') {
+      // Handle 'a' key for bomb placement separately
+      if (event.key === 'a') {
         this.placeBomb();
       }
     };
