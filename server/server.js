@@ -291,7 +291,9 @@ io.on('connection', (socket) => {
     io.emit('drop_bomb', {
       bombId,
       playerId: socket.id,
+      ownerId: socket.id, // Add ownerId explicitly for client-side consistency
       x: data.x,
+      y: data.y, // Make sure y coordinate is included
       explosionRange: gameState.bombs[bombId].explosionRange,
       nickname: gameState.players[socket.id].nickname
     });

@@ -594,15 +594,19 @@ function startGame(container: HTMLElement, gameData?: any) {
   eventBus.on('remote:bomb:dropped', (data) => {
     console.log('Remote bomb placement:', data);
     
-    // Skip if this is the local player's bomb
-    if (data.playerId === localStorage.getItem('playerId')) {
-      return;
-    }
+    // We no longer skip local player bombs to ensure they're visible on all screens
+    // Instead, we'll create the bomb DOM element for all bombs received from the server
     
     // Get map container
     const mapContainer = getMapContainer();
     if (!mapContainer) {
       console.error('Map container not found for remote bomb placement');
+      return;
+    }
+    
+    // Ensure we have both x and y coordinates
+    if (data.x === undefined || data.y === undefined) {
+      console.error('Missing coordinates for bomb placement:', data);
       return;
     }
     
@@ -624,6 +628,10 @@ function startGame(container: HTMLElement, gameData?: any) {
       box-sizing: border-box;
     `;
     
+    // Debug info
+    console.log(`Creating bomb at position: (${data.x}, ${data.y}) with ID: ${bomb.id}`);
+    console.log(`Bomb position in pixels: left=${data.x * TILE_SIZE}px, top=${data.y * TILE_SIZE}px`);
+    
     // Add a fuse to make the bomb more visible
     const fuse = document.createElement('div');
     fuse.style.cssText = `
@@ -643,6 +651,33 @@ function startGame(container: HTMLElement, gameData?: any) {
     
     console.log(`Created remote bomb at ${data.x},${data.y} with range ${data.explosionRange}`);
     
+    // Emit bomb:thrown event to trigger animation
+    // Find the player who placed the bomb to get their position
+    const playerElement = document.getElementById(`player-${data.ownerId || data.playerId}`);
+    let playerX = data.x;
+    let playerY = data.y;
+    
+    if (playerElement) {
+      // Get position from style (player elements use style.left and style.top)
+      const style = window.getComputedStyle(playerElement);
+      const left = parseInt(style.left, 10) || 0;
+      const top = parseInt(style.top, 10) || 0;
+      
+      // Convert from pixels to grid coordinates
+      playerX = left / TILE_SIZE;
+      playerY = top / TILE_SIZE;
+    }
+    
+    // Emit the bomb:thrown event to trigger animation
+    eventBus.emit('bomb:thrown', {
+      ownerId: data.ownerId || data.playerId,
+      playerX: playerX,
+      playerY: playerY,
+      bombX: data.x,
+      bombY: data.y,
+      bombId: data.bombId
+    });
+    
     // Remove bomb after 2 seconds (matching server timeout)
     setTimeout(() => {
       bomb.remove();
@@ -653,11 +688,8 @@ function startGame(container: HTMLElement, gameData?: any) {
   eventBus.on('remote:bomb:explode', (data) => {
     console.log('Remote bomb explosion:', data);
     
-    // Skip if this is the local player's bomb (it will be handled by the local player's code)
-    if (data.ownerId === localStorage.getItem('playerId')) {
-      console.log('Skipping local player bomb explosion');
-      return;
-    }
+    // We no longer skip local player bomb explosions to ensure they're visible on all screens
+    // This ensures consistent explosion rendering across all clients
     
     // Get map container
     const mapContainer = getMapContainer();

@@ -331,11 +331,11 @@ export class BombRenderer {
   }
 
   // Handle bomb thrown event - creates a visible animation from player to bomb location
-  private handleBombThrown(data: { ownerId: string, playerX: number, playerY: number, bombX: number, bombY: number }): void {
+  private handleBombThrown(data: { ownerId: string, playerX: number, playerY: number, bombX: number, bombY: number, bombId?: string }): void {
     console.log('Bomb thrown event received:', data);
     
-    // Create a unique ID for this bomb to prevent duplicate animations
-    const bombId = `${data.ownerId}-${data.bombX}-${data.bombY}`;
+    // Use provided bombId if available, otherwise generate one
+    const bombId = data.bombId || `${data.ownerId}-${data.bombX}-${data.bombY}-${Date.now()}`;
     
     // Check if we've already animated this bomb
     if (this.animatedBombs.has(bombId)) {
@@ -343,8 +343,17 @@ export class BombRenderer {
       return;
     }
     
-    // Mark this bomb as animated
+    // Also check if we've animated a bomb at this position from this owner recently
+    // This helps prevent duplicates when bombId is inconsistent
+    const positionKey = `${data.ownerId}-${data.bombX}-${data.bombY}`;
+    if (this.animatedBombs.has(positionKey)) {
+      console.log('Skipping duplicate animation for bomb at position:', positionKey);
+      return;
+    }
+    
+    // Mark this bomb as animated using both IDs
     this.animatedBombs.add(bombId);
+    this.animatedBombs.add(positionKey);
     
     // Create the animation
     this.createBombThrowAnimation(data.playerX, data.playerY, data.bombX, data.bombY);
@@ -352,15 +361,16 @@ export class BombRenderer {
     // Clean up the tracking after a delay
     setTimeout(() => {
       this.animatedBombs.delete(bombId);
-    }, 2000); // Clean up after 2 seconds
+      this.animatedBombs.delete(positionKey);
+    }, 3000); // Extended cleanup time to prevent race conditions
   }
   
   // Handle bomb placed event - fallback for when bomb:thrown isn't triggered
-  private handleBombPlaced(data: { ownerId: string, x: number, y: number }): void {
+  private handleBombPlaced(data: { ownerId: string, x: number, y: number, bombId?: string }): void {
     console.log('Bomb placed event received:', data);
     
-    // Create a unique ID for this bomb to prevent duplicate animations
-    const bombId = `${data.ownerId}-${data.x}-${data.y}`;
+    // Use provided bombId if available, otherwise generate one
+    const bombId = data.bombId || `${data.ownerId}-${data.x}-${data.y}-${Date.now()}`;
     
     // Check if we've already animated this bomb
     if (this.animatedBombs.has(bombId)) {
@@ -368,8 +378,17 @@ export class BombRenderer {
       return;
     }
     
-    // Mark this bomb as animated
+    // Also check if we've animated a bomb at this position from this owner recently
+    // This helps prevent duplicates when bombId is inconsistent
+    const positionKey = `${data.ownerId}-${data.x}-${data.y}`;
+    if (this.animatedBombs.has(positionKey)) {
+      console.log('Skipping duplicate animation for bomb at position:', positionKey);
+      return;
+    }
+    
+    // Mark this bomb as animated using both IDs
     this.animatedBombs.add(bombId);
+    this.animatedBombs.add(positionKey);
     
     // We need to find the player position since it's not included in the bomb:placed event
     // Player elements have ID format 'player-{id}' based on the player.ts implementation
@@ -405,7 +424,8 @@ export class BombRenderer {
     // Clean up the tracking after a delay
     setTimeout(() => {
       this.animatedBombs.delete(bombId);
-    }, 2000); // Clean up after 2 seconds
+      this.animatedBombs.delete(positionKey);
+    }, 3000); // Extended cleanup time to prevent race conditions
   }
 
   // Handle bomb explosion event
